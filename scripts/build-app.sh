@@ -26,9 +26,9 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>vn.nahtkey.mac</string>
 <key>CFBundleExecutable</key><string>NahtKey</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.2.4</string>
-<key>CFBundleVersion</key><string>7</string>
-<key>CFBundleIconFile</key><string>NahtKey</string>
+<key>CFBundleShortVersionString</key><string>0.3.1</string>
+<key>CFBundleVersion</key><string>9</string>
+<key>CFBundleIconFile</key><string>NahtKey.icns</string>
 <key>LSUIElement</key><true/>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
@@ -40,6 +40,9 @@ signing_identity="${NAHTKEY_SIGN_IDENTITY:-$(git config --local --get nahtkey.si
 signing_identity="${signing_identity:--}"
 codesign --force --sign "$signing_identity" --identifier vn.nahtkey.mac "$bundle"
 codesign --verify --strict "$bundle"
+# Package mtime is used by Finder/Spotlight/icon caches. mkdir/ditto alone can
+# leave the original 0.1 package date even while every file inside is updated.
+touch "$bundle"
 if [ "$signing_identity" = "-" ]; then
     printf '%s\n' 'Ad-hoc build: macOS may require granting Accessibility again after the binary changes.'
 fi

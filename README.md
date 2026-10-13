@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.4 mặc định bật bộ gõ và nhớ trạng thái bật/tắt, đồng thời giữ chuỗi mã, hỗ trợ viết tắt `đc/đt/đk…` và quy tắc cá nhân bằng phím gốc hoặc từ có dấu.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.1 thêm Ctrl+Shift toàn hệ thống, nhấn đúp icon để mở cửa sổ, icon bật/tắt rõ ràng và gõ VNI/Telex trực tiếp trong ô Thay bằng.
 
 ## Dùng bản đầu
 
@@ -10,14 +10,16 @@ Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.4
 2. Bấm **Cấp quyền Trợ năng…**, cho phép **NahtKey** trong System Settings → Privacy & Security → Accessibility (tên mục có thể khác theo phiên bản macOS).
 3. Chọn nguồn nhập **ABC**, tắt chế độ tiếng Việt của bộ gõ khác, chọn **VNI** hoặc **Telex** rồi bật **Bật bộ gõ** trong NahtKey.
 4. Gõ ở ứng dụng cần dùng. `ban5` → `bạn`. `abn5` hoặc `ab5n` + Space → `bạn `.
-5. Dùng icon NahtKey trên menu bar để bật/tắt bộ gõ, đổi VNI/Telex hoặc mở bảng từ cá nhân.
-6. Bấm **X** hoặc **Cmd+Q** để ẩn cửa sổ và icon Dock, vẫn giữ bộ gõ chạy. Chọn **Thoát hoàn toàn NahtKey** trong menu bar để thoát thật.
+5. Nhấn và nhả riêng **Ctrl+Shift** để bật/tắt bộ gõ (không phải Cmd). Tổ hợp có phím khác như Ctrl+Shift+C vẫn được giữ nguyên. Shortcut hoạt động cả khi bộ gõ đang tắt, nếu NahtKey có quyền Trợ năng.
+6. Icon NahtKey bình thường khi bật, có nét gạch mảnh phía thân N khi tắt. Nhấn đúp icon để mở cửa sổ; nhấn một lần mở menu sau khoảng nhận nhấn đúp của macOS; chuột phải mở menu ngay.
+7. Bấm **X** hoặc **Cmd+Q** để ẩn cửa sổ và icon Dock, vẫn giữ bộ gõ chạy. Chọn **Thoát hoàn toàn NahtKey** trong menu bar để thoát thật.
 
 NahtKey mặc định bật bộ gõ và nhớ lựa chọn bật/tắt của bạn khi mở lại. Nếu chưa có quyền, bộ gõ chờ quyền; khi quyền được cấp sẽ tự bật nếu trạng thái mong muốn là bật. Bảng từ và ô thử VNI hoạt động trước khi cấp quyền. Ô thử dùng cùng lõi xử lý, nhưng không thay thế việc kiểm tra bắt phím trong ứng dụng khác.
 
 ## Bảng sửa lỗi cá nhân
 
 - Thêm, sửa, đổi chuỗi gõ nhầm, xóa có xác nhận và tìm kiếm.
+- Ô **Thay bằng** có bộ xử lý cục bộ theo VNI/Telex đang chọn, hoạt động cả khi chưa cấp quyền toàn hệ thống: `giua74 → giữa`. Ô **Chuỗi gõ hoặc từ cần sửa** nhận phím nguyên văn để giữ các alias như `abn5`; có thể dán từ có dấu vào ô này.
 - Chuỗi gõ hoặc từ cần sửa gồm chữ cái/chữ số Unicode, dài 1–64 ký tự, phân biệt hoa/thường. Có thể lưu `abn5 → bạn` hoặc `càu → của`; dữ liệu được chuẩn hóa NFC để tránh hai mục nhìn giống nhau nhưng khác mã Unicode.
 - Từ thay thế dài 1–128 ký tự, không có khoảng trắng hoặc ký tự điều khiển.
 - So khớp phím gốc trước; nếu không có thì xét đúng từ đã ghép dấu cho các mục có chữ Unicode. Sửa khi gặp Space, dấu câu, Tab hoặc Enter; không đoán từ gần giống.
@@ -42,7 +44,7 @@ Telex hỗ trợ `aa/aw/ee/oo/ow/uw/dd`, dấu `s/f/r/x/j`, bỏ dấu `z`, ch�
 - Trên các browser được nhận diện và Codex/ChatGPT desktop, thay phần đuôi bằng selection có ký tự tạm bảo vệ autocomplete, thay vì xóa trống chữ đầu tiên. Native editor giữ cách Backspace. Ký tự tạm được chọn và thay ngay trong cùng giao dịch.
 - Tắt suppression phím thật khi phát phím tổng hợp, và theo dõi thay đổi focus. Lõi xử lý từng phím tăng dần thay vì phát lại toàn bộ chuỗi.
 - Vẫn cần kiểm tra thực tế từng ứng dụng. Không cam kết mọi trình soạn thảo, ô tự hoàn thành hay game đều tương thích.
-- Chưa có tự chạy khi đăng nhập, nhập/xuất qua giao diện hoặc phím tắt bật/tắt toàn hệ thống. Cmd+Q là ẩn ứng dụng, không phải phím đổi chế độ.
+- Chưa có tự chạy khi đăng nhập hoặc nhập/xuất qua giao diện. Ctrl+Shift là phím đổi chế độ; Cmd+Q chỉ ẩn ứng dụng.
 
 Ứng dụng không ghi nhật ký phím, không dùng clipboard để thay chữ và không gọi dịch vụ mạng. Chỉ từ điển do người dùng quản lý được lưu xuống đĩa.
 
@@ -53,12 +55,16 @@ Yêu cầu macOS 14 trở lên và Xcode/Swift toolchain. Không có package ngo
 ```sh
 swift test
 ./scripts/build-app.sh
-open dist/NahtKey.app
+# Thoát hoàn toàn NahtKey trong menu trước khi cài:
+./scripts/install-local.sh
+open /Applications/NahtKey.app
 ```
 
 `build-app.sh` tạo app bundle và ký bằng identity được cấu hình. Từ bản 0.2.1, máy này dùng chứng chỉ nội bộ cố định; đã kiểm tra cập nhật sang bundle có hash khác vẫn giữ quyền Trợ năng. Đây chưa phải bản phân phối được notarize. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
 
 Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git config local của repo; chỉ ký ad-hoc nếu cả hai chưa có. Trên máy phát triển này đã thiết lập certificate **NahtKey Local Development** theo chấp thuận người dùng. Xem [hướng dẫn ký code](docs/code-signing.md).
+
+`install-local.sh` cập nhật timestamp của app bundle, đăng ký lại riêng NahtKey với LaunchServices và nhập lại metadata Spotlight. Cách này tránh giữ icon/phiên bản cũ khi cập nhật bằng cách chép đè; không xóa cache hệ thống hoặc khởi động lại Finder/Dock.
 
 - `Sources/NahtKeyCore`: lõi VNI và sửa lỗi, độc lập với giao diện/macOS.
 - `Sources/NahtKeyApp`: SwiftUI, lưu thư viện, lớp event tap macOS.

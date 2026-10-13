@@ -66,3 +66,11 @@ Người dùng phát hiện guard âm tiết quá chặt làm mất `d9c → đc
 Ảnh người dùng cho thấy không thêm được `càu → của` do giới hạn ASCII. Store/UI nay nhận chữ/số Unicode và chuẩn hóa NFC; loader không tự ghi đè tệp có alias xung đột sau chuẩn hóa. Tại ranh giới từ: raw exact trước, từ Unicode đã ghép sau, rồi kết quả thông thường. Quy tắc chỉ chạy một lần; nhận lại từ cũ chưa biết raw không tự chạy lại các alias.
 
 Đã lưu `càu → của` qua giao diện thật vào thư viện của người dùng và quan sát ô thử trả `đc đc đt đt matkhau123 của bạn` cho `d9c dc9 dt9 d9t matkhau123 cau2 abn5 `. Sau nâng cấp 0.2.4, quy tắc vẫn còn; bộ gõ tự bật khi mở app với quyền có sẵn. Bản này ghi nhớ lựa chọn bật/tắt trong preferences; chờ quyền nếu chưa có. Toàn bộ 70 kiểm thử đạt trước khi đóng gói.
+
+## Menu bar, shortcut và ô nhập của ứng dụng
+
+Người dùng xác nhận Ctrl+Shift, hai trạng thái icon và nhấn đúp menu bar đều hoạt động. Icon tắt được tinh chỉnh thành nét gạch 1 pt, nghiêng thoải qua thân N, thấp hơn dấu sắc.
+
+Ô Thay bằng trước đây đi qua cơ chế bỏ qua toàn bộ app nên không ghép dấu. Nay dùng NSTextField với bộ xử lý cục bộ, sửa range UTF-16 theo grapheme, không gửi phím hệ thống. Đã thử bằng sự kiện phím native `giua74 → giữa`, và Select All + `a11 → a1`. Phép thử không lưu mục giả vào từ điển. Tổng bộ test tại thời điểm này là 85 ca.
+
+Icon app không thiếu: file ICNS hợp lệ và NSWorkspace trả logo đúng. Nhưng metadata Spotlight từng còn ghi 0.1.0 trong khi app đã 0.2.4. Đã làm mới riêng app và bổ sung bước touch/register/mdimport vào quá trình cài, không xóa cache toàn máy.
