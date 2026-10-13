@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.1 thêm Ctrl+Shift toàn hệ thống, nhấn đúp icon để mở cửa sổ, icon bật/tắt rõ ràng và gõ VNI/Telex trực tiếp trong ô Thay bằng.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.2 sửa icon xem trước trong Finder; giữ Ctrl+Shift toàn hệ thống, nhấn đúp icon để mở cửa sổ và gõ VNI/Telex trực tiếp trong ô Thay bằng.
 
 ## Dùng bản đầu
 
@@ -50,7 +50,7 @@ Telex hỗ trợ `aa/aw/ee/oo/ow/uw/dd`, dấu `s/f/r/x/j`, bỏ dấu `z`, ch�
 
 ## Phát triển
 
-Yêu cầu macOS 14 trở lên và Xcode/Swift toolchain. Không có package ngoài.
+App chạy trên macOS 14 trở lên. Đóng gói cần Xcode 26 trở lên (đã kiểm tra với Xcode 27) để biên dịch tài nguyên Icon Composer. Không có package ngoài.
 
 ```sh
 swift test
@@ -65,6 +65,8 @@ open /Applications/NahtKey.app
 Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git config local của repo; chỉ ký ad-hoc nếu cả hai chưa có. Trên máy phát triển này đã thiết lập certificate **NahtKey Local Development** theo chấp thuận người dùng. Xem [hướng dẫn ký code](docs/code-signing.md).
 
 `install-local.sh` cập nhật timestamp của app bundle, đăng ký lại riêng NahtKey với LaunchServices và nhập lại metadata Spotlight. Cách này tránh giữ icon/phiên bản cũ khi cập nhật bằng cách chép đè; không xóa cache hệ thống hoặc khởi động lại Finder/Dock.
+
+Icon ứng dụng được biên dịch từ `assets/NahtKey.icon` bằng `actool`, tạo `Assets.car`, bản dự phòng `.icns` và các khóa Info.plist tương ứng. Lớp `Assets/Logo.png` là bản sao nguyên vẹn của logo gốc `NahtKeyIcon.png`, đặt phủ kín khuôn icon của hệ thống để preview lớn trong Finder không lồng thêm nền trắng. Giữ hai ảnh này đồng bộ khi đổi logo. Tài liệu `.icon` có thể mở bằng [Icon Composer](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer).
 
 - `Sources/NahtKeyCore`: lõi VNI và sửa lỗi, độc lập với giao diện/macOS.
 - `Sources/NahtKeyApp`: SwiftUI, lưu thư viện, lớp event tap macOS.
