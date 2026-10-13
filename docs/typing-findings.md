@@ -116,3 +116,13 @@ Phát hiện thêm lỗi có thể tái hiện bằng trạng thái: lần `a` �
 Theo yêu cầu người dùng, ô **Chuỗi gõ hoặc từ cần sửa** dùng chung trường nhập VNI/Telex với **Thay bằng**, không thêm lựa chọn chế độ. Kiểm tra trên UI cài thật: `cau2 → càu`, `abn5 → abn5`, `ab5n → ab5n`; chuyển Tab sang ô dưới và gõ `cua73 → cửa` độc lập. Sửa thêm action NSTextField để chỉ Return/Enter mới submit; Tab/click chuyển ô không gọi lưu sớm. Hủy form kiểm thử, thư viện vẫn 15 mục và giữ nguyên sửa đổi riêng của người dùng.
 
 Cửa sổ quản lý luôn dùng activation policy accessory, cả đường mở lại từ menu và mở app. Xác minh khi cửa sổ đang mở: tiến trình chạy, `accessory=true`, `hidden=false`; không tự gia nhập Dock. Quyền Trợ năng và VNI vẫn bật sau cài.
+
+## Khởi động nền và chuyển thư viện — 0.4.0
+
+Thêm tùy chọn SMAppService.mainApp, đọc trạng thái thật của Login Items, không tự đăng ký lúc tạo controller. Khởi tạo store, kết nối từ điển với bộ gõ và status item theo vòng đời ứng dụng; cửa sổ NSHostingController chỉ được tạo khi mở thủ công. Giữ SwiftUI cho toàn bộ giao diện, accessory cho cả cửa sổ mở. Login Apple Event được đọc ngay trong callback launch; chặn reopen ở lượt khởi động đầu để không làm lóe cửa sổ.
+
+Kiểm tra trên bản cài: công tắc Login Items tắt rồi bật lại thành công, trạng thái cuối bật như trạng thái ban đầu đã quan sát. Chạy bản cài qua LaunchServices với `--background`: `accessory=true`, `active=false`, `visibleWindows=0`, `keyboardTapEnabled=true`. Sau đó mở thủ công vẫn có cửa sổ và VNI đang bật. Không đăng xuất/khởi động lại máy trong phép thử; nhận diện Apple Event đăng nhập có unit test riêng. Chạy thẳng executable từ terminal có ngữ cảnh quyền khác và không thay cho kiểm tra qua LaunchServices.
+
+Nhập/xuất JSON v1 dùng merge theo alias NFC, imported value thắng khi xung đột, dòng cuối thắng cho trùng ngay trong file. Giữ ID của mục hiện có, giải quyết UUID đụng nhau cho mục mới; không tin seedRevision từ file nhập. Mọi dòng phải hợp lệ trước một lần ghi nguyên tử, giới hạn đọc thực tế 4 MiB, giữ nguyên dữ liệu khi lỗi. Kiểm tra UI thật: xuất 15 mục, nhập file có 16 dòng gồm một mục trùng hoàn toàn; kết quả 0 thêm, 0 cập nhật, 15 giữ nguyên, gộp 1. Bộ kiểm thử gồm 122 ca, bao gồm round-trip, ưu tiên xung đột, rollback, Unicode chuẩn hóa và trạng thái login.
+
+Kiểm tra thêm sau thay bootstrap: Cmd+N mở form, hai ô ghép dấu được, Cmd+A/Undo hoạt động và Hủy không lưu dữ liệu thử. Gói phát hành chỉ chứa ứng dụng arm64, không đưa thư viện người dùng hay khóa ký riêng lên GitHub. Bản phát hành hiện dùng chứng chỉ nội bộ, chưa notarize.
