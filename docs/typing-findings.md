@@ -1,6 +1,6 @@
 # Các trường hợp hồi quy
 
-Các ví dụ dưới đây dùng để kiểm tra bộ gõ khi cập nhật. NahtKey xử lý trên máy, không ghi nhật ký phím và không gửi nội dung gõ lên mạng.
+Các ví dụ dưới đây dùng để kiểm tra bộ gõ khi cập nhật.
 
 ## Ghép dấu và sửa từ
 
@@ -20,15 +20,13 @@ Các ví dụ dưới đây dùng để kiểm tra bộ gõ khi cập nhật. Na
 | `go` + Space + Backspace + `4` | gõ |
 | `nhận` + Space + Backspace + `4` | nhẫn |
 
-Thử thêm Telex, chữ hoa, dấu lặp, Backspace và nhập ở đầu ô trống hoặc sau khi chọn hết/xóa. Quy tắc cá nhân chỉ khớp toàn bộ từ và chạy một lần, không thay thế việc sửa lỗi ghép dấu.
+Thử thêm Telex, chữ hoa, dấu lặp, Backspace và nhập ở đầu ô trống hoặc sau khi chọn hết/xóa.
 
 ## Gõ nhanh và chồng phím
 
 - Gõ `chu`, giữ `a`, nhấn `7` trước khi thả `a`: kết quả phải là `chưa`. Thử tương tự với `mưa`, `cưa` và các tổ hợp giữ `a/e` với dấu VNI `0–9`.
 - Gõ nhiều từ liên tiếp, kiểm tra không mất phụ âm đầu hoặc dấu cách giữa các từ.
 - Giữ phím để lặp rồi thả: không được để ứng dụng tiếp tục nhận phím lặp sau khi đã thả.
-
-NahtKey chọn mã phím Unicode không trùng phím đang giữ và chuẩn bị đủ lần thay chữ trước khi xóa. Phần chữ cần đổi được thay bằng Backspace và Unicode, không chèn ký tự tạm hay bôi chọn bằng phím tổng hợp.
 
 ## Giao diện và thư viện
 

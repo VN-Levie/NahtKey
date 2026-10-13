@@ -1,71 +1,12 @@
-NahtKey original icon and menu bar template
+NahtKey icon design
 
-Tool: built-in image_gen.imagegen (transparent_background: true for every call)
+Assets created with image generation:
+- NahtKeyIcon.png: app icon, white N and acute accent on a teal-to-blue rounded square.
+- NahtKeyMenuBar.png: monochrome N and accent on a transparent background.
+- NahtKey.icon/Assets/Logo.png: keep identical to NahtKeyIcon.png when updating the icon.
 
-Final app icon: assets/NahtKeyIcon.png
+App icon prompt:
+Create a minimal macOS app icon for NahtKey. Use a bold white geometric N and one small acute accent above it, centered on a single teal-to-blue rounded square. Use sturdy strokes that remain clear at 32 pixels. Keep transparency outside the tile. No inner tile, border, shadow, wordmark or extra details.
 
-Final app-icon source: /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945/exec-a7449944-6805-48a9-b17d-524fd0bd5ad9.png
-
-Menu icon: assets/NahtKeyMenuBar.png
-
-Menu-icon source: /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945/exec-448e1086-ead0-4814-9c3d-ae10c98b27a4.png
-
-Both final outputs: PNG 1254 x 1254, hasAlpha: yes.
-
-
-
-1. Original logo generation prompt (no references):
-
-Use case: logo-brand
-Asset type: production macOS app icon for NahtKey, a Vietnamese keyboard input utility.
-Primary request: create one polished original, memorable app icon, suitable for a dock icon and recognizable when reduced to 32 pixels.
-Subject: a bold white custom geometric N monogram integrated with the simple shape of a keyboard keycap. Add one small, deliberate Vietnamese accent cue above the monogram, shaped like an elegant acute accent. The N must be clearly readable.
-Scene/backdrop: a single softly rounded square app-icon tile on a genuinely transparent canvas. The tile fills about 85 percent of the square canvas with balanced equal padding on all sides.
-Style/medium: refined minimal vector-like raster artwork with clean contours, generous negative space, subtle dimensional finish, crisp and professional native macOS character.
-Color palette: rich teal transitioning gently into deep blue-teal, luminous white monogram, restrained cool highlights.
-Composition/framing: centered front-facing square icon, balanced optical alignment, distinctive simple silhouette, robust thick strokes. No perspective rotation.
-Constraints: transparent alpha outside the rounded square; no background scene, no checkerboard baked into pixels, no full wordmark, no text except the single stylized N, no small keyboard details, no extra objects, no mockup, no watermark, no thin outlines. Deliver only the finished icon.
-
-
-
-2. Edge cleanup prompt (reference: exec-0725d502-a487-4cd4-8a04-2fa085616239.png):
-
-Use case: precise-object-edit
-Asset type: finished transparent macOS app icon.
-Edit target: attached NahtKey icon.
-Change ONLY the outer silhouette and alpha edge of this icon: remove all stray cyan/teal edge speckles, wisps, spikes, bumps, or debris outside the main rounded-square silhouette. Make the outer rounded-square edge perfectly smooth, clean and antialiased, ready for a production app icon. Preserve actual transparency outside.
-Invariants: keep the central white N, white accent mark, inner raised keycap, teal-to-blue palette, lighting, composition, size and padding identical. Do not redesign. Do not add a background, border, text, or decoration. Output only the clean finished transparent PNG icon.
-
-
-
-3. Final simplified app icon prompt (reference: exec-3afe1f11-4be4-4914-97b1-fa31762f39e2.png):
-
-Use case: style-transfer
-Asset type: minimal production macOS app icon for NahtKey.
-Edit target: attached NahtKey app icon.
-Primary request: simplify this icon into a beautifully crisp flat minimal icon. Keep the same bold white custom N monogram and the single small white acute accent above it. Remove the inner raised keycap block completely. Remove all bevels, glossy edges, highlights, embossing, drop shadows and dimensional details. Keep ONLY the bold white N plus white accent centered on ONE teal rounded-square tile with at most a very subtle deep-teal-to-blue-teal color gradient.
-Composition: balanced center alignment, generous clear space around the N and accent, a single rounded square occupying about 85 percent of a square transparent canvas.
-Constraints: truly transparent alpha outside the single smooth rounded square. Exactly one tile, no inner tile, no border, no shadow, no words, no extra elements. Thick sturdy strokes and excellent clarity at 32 pixels. This is a simpler flat version of the same identity, not a 3D keycap.
-
-
-
-4. Final menu bar icon prompt (reference: exec-a7449944-6805-48a9-b17d-524fd0bd5ad9.png):
-
-Use case: background-extraction
-Asset type: macOS menu bar template icon for NahtKey, optimized for display at 18 pixels.
-Edit target: attached minimal NahtKey app icon.
-Primary request: isolate ONLY the distinctive N monogram and its single acute accent, turn both shapes into uniform solid black, and completely remove the colored rounded-square background.
-Style: strictly flat monochrome black silhouette on true transparent alpha. Retain the same N and acute-accent identity, but keep the edges crisp and strokes robust for 18-pixel display.
-Composition: center the N-plus-accent symbol on a tightly framed square transparent canvas with about 8 percent safe padding around the symbol. The accent must remain visibly separated from the N. No tile, no border, no shadows, no gradient, no glow, no gray surface, no text, no watermark, no checkerboard. Exactly two solid-black connected components: the N and the accent. Output a transparent PNG template icon.
-
-
-
-Selected tool metadata:
-
-Generated images are saved to /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945 as /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945/exec-a7449944-6805-48a9-b17d-524fd0bd5ad9.png by default.
-If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.
-The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.
-
-Generated images are saved to /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945 as /Users/levie/.codex/generated_images/01a13600-2b34-7d00-b6f4-8a5df716b945/exec-448e1086-ead0-4814-9c3d-ae10c98b27a4.png by default.
-If you need to use a generated image at another path, copy it and leave the original in place unless the user explicitly asks you to delete it.
-The generated image is already displayed to the user. There is no need to render it in the final response as a Markdown image or file link.
+Menu bar icon prompt:
+Use the same N and acute accent as the app icon. Render both in solid black on a transparent background, without the colored tile. Keep the accent separate and the silhouette clear at 18 pixels. No shadows, gradients or extra elements.
