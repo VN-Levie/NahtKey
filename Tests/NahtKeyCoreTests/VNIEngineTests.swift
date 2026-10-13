@@ -268,4 +268,22 @@ final class VNIEngineTests: XCTestCase {
             XCTAssertEqual(visible, String(repeating: expected, count: 100), method.displayName)
         }
     }
+
+    func testResumeVisibleWordReplacesToneAndDisablesExactRawAliases() {
+        let engine = VNIEngine(corrections: ["go4": "WRONG", "nhận4": "WRONG"])
+        for (word, expected) in [("go", "gõ"), ("nhận", "nhẫn")] {
+            var visible = word
+            engine.resume(word)
+            apply(engine.process("4"), to: &visible)
+            XCTAssertEqual(visible, expected)
+            apply(engine.finish(), to: &visible)
+            XCTAssertEqual(visible, expected)
+        }
+
+        engine.inputMethod = .telex
+        var visible = "nhận"
+        engine.resume(visible)
+        apply(engine.process("x"), to: &visible)
+        XCTAssertEqual(visible, "nhẫn")
+    }
 }

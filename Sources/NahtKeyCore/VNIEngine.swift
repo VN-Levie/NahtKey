@@ -96,6 +96,21 @@ public final class VNIEngine {
         return TextEdit(deleteCount: 1, insertText: "")
     }
 
+    /// Resume a known visible word after a delimiter was removed or the host
+    /// verified the caret position. Unknown source keystrokes must never qualify
+    /// for an exact raw alias. Reject partial, non-word, and overlong input.
+    public func resume(_ visibleWord: String) {
+        reset()
+        mayCorrectRaw = false
+        guard !visibleWord.isEmpty, visibleWord.count <= maximumTokenLength,
+              visibleWord.allSatisfy(\.isLetter) else { return }
+        let normalized = visibleWord.precomposedStringWithCanonicalMapping
+        raw = normalized
+        rendered = normalized
+        characters = Array(normalized)
+        capturedKeyCount = characters.count
+    }
+
     public func reset() {
         raw = ""
         rendered = ""

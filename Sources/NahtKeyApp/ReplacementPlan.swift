@@ -12,6 +12,10 @@ enum ReplacementOperation: Equatable {
 enum ReplacementPlan {
     static let selectionGuard = "\u{202F}"
 
+    static func committingSpace(after edit: TextEdit) -> TextEdit {
+        TextEdit(deleteCount: edit.deleteCount, insertText: edit.insertText + " ")
+    }
+
     static func operations(for edit: TextEdit, protectAutocomplete: Bool) -> [ReplacementOperation] {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return [] }
         var result: [ReplacementOperation] = []

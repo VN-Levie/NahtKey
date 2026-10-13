@@ -4,7 +4,8 @@ import Carbon
 import Combine
 import NahtKeyCore
 
-/// The tap runs on the main run loop. No I/O or text logging occurs in its callback.
+/// The tap runs on the main run loop. No text is logged; bounded Accessibility
+/// context is read only when an explicit modifier resumes a word at the caret.
 @MainActor
 final class KeyboardController: ObservableObject {
     @Published private(set) var isEnabled = false
@@ -13,7 +14,7 @@ final class KeyboardController: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var inputMethod: InputMethod = .vni
 
-    private let engine = VNIEngine()
+    private let engine = TypingSession()
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var permissionTimer: Timer?
@@ -146,7 +147,9 @@ final class KeyboardController: ObservableObject {
         focusedElement = element
         var subrole: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
-        secureFocus = (subrole as? String) == kAXSecureTextFieldSubrole as String
+        var protected: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, "AXProtectedContent" as CFString, &protected)
+        secureFocus = (subrole as? String) == kAXSecureTextFieldSubrole as String || (protected as? Bool) == true
         if secureFocus { engine.reset() }
     }
 
@@ -228,6 +231,9 @@ final class KeyboardController: ObservableObject {
             return pass
         }
         guard type == .keyDown else { return pass }
+        // A repeated physical down may become pass-through after an earlier
+        // transformed down; its final up must follow the latest down's treatment.
+        consumedKeys.remove(key)
         // Dictionary editors accept literal aliases. The built-in lab uses the same pure engine.
         guard let activeApp, activeApp.bundleIdentifier != ownBundleID else {
             engine.reset()
@@ -247,7 +253,18 @@ final class KeyboardController: ObservableObject {
             return nil
         }
         if [36, 48, 49, 76].contains(key) { // Return, Tab, Space, keypad Return
-            post(engine.finish(), proxy: proxy)
+            let hadWord = !engine.rendered.isEmpty
+            let boundary: Character = key == 49 ? " " : (key == 48 ? "\t" : "\n")
+            let edit = engine.finish(boundary: boundary)
+            if key == 49 && hadWord && (protectAutocomplete || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
+                // Own the completed word AND its space as one text transaction.
+                // Do not mix synthetic word replacement with a physical delimiter.
+                post(ReplacementPlan.committingSpace(after: edit), proxy: proxy)
+                consumedKeys.insert(key)
+                return nil
+            }
+            post(edit, proxy: proxy)
+            if key != 49 { engine.reset() } // Return/Tab may submit or move to another field.
             return pass
         }
         if [53, 115, 116, 117, 119, 121, 123, 124, 125, 126].contains(key) {
@@ -262,6 +279,7 @@ final class KeyboardController: ObservableObject {
         guard text.count == 1, let character = text.first,
               let ascii = character.asciiValue else { engine.reset(); return pass }
         if (65...90).contains(ascii) || (97...122).contains(ascii) || (48...57).contains(ascii) {
+            resumeWordIfNeeded(for: character)
             let edit = engine.process(character)
             if edit.deleteCount == 0 && edit.insertText == text { return pass }
             post(edit, proxy: proxy)
@@ -269,11 +287,21 @@ final class KeyboardController: ObservableObject {
             return nil
         }
         if ascii >= 32 && ascii < 127 {
-            post(engine.finish(), proxy: proxy)
+            post(engine.finish(boundary: character), proxy: proxy)
         } else {
             engine.reset()
         }
         return pass
+    }
+
+    private func resumeWordIfNeeded(for character: Character) {
+        guard engine.rendered.isEmpty else { return }
+        let modifiers = inputMethod == .vni ? "0123456789" : "sfrxjzaweod"
+        guard modifiers.contains(String(character).lowercased()), !IsSecureEventInputEnabled() else { return }
+        refreshFocusedElement()
+        guard !secureFocus, let focusedElement,
+              let word = CaretWordReader.word(beforeCaretIn: focusedElement) else { return }
+        engine.resume(word)
     }
 
     private func post(_ edit: TextEdit, proxy: CGEventTapProxy) {

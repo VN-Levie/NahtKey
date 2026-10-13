@@ -44,3 +44,9 @@ Test lõi bao gồm VNI/Telex, dấu và chữ hoa, `qu/gi`, nhóm `ưu/ươu/ư
 Kiểm tra thực tế cần gõ ở đầu input trống: VNI `d9a4 uu7 abn5 ab5n`, Telex `ddax uuw`, sau Select All/Delete, sau đổi ô bằng Tab và khi gõ nhanh cả câu. Dùng `keyboard-test.html` để thử input, textarea và contenteditable; không lưu hoặc gửi nội dung.
 
 Ngày 13/10/2026, người dùng xác nhận bằng bàn phím thật trên bản 0.2: **“Đã ưu bạn bạn đúng, chưa thấy mất/gộp chữ”**. Đây là xác nhận người dùng trong phạm vi lượt thử, chưa phải kiểm chứng mọi editor. UI Telex được quan sát cho kết quả `đã ưu tiếng Việt bạn`. Sau X/Cmd+Q, kiểm tra hệ thống cho thấy tiến trình còn sống, activation policy accessory, không có cửa sổ onscreen và event tap vẫn bật. Browser tự động của Codex chặn file URL nên trang fixture chưa được tự động kiểm tra tại đó.
+
+## Bổ sung 0.2.1
+
+Người dùng tiếp tục báo `go ` + xóa Space + `4` thành `go4`, `nhận4` thay vì `nhẫn`, và thỉnh thoảng mất Space (`gõtừ`). Đã thêm nhận lại từ hoàn chỉnh bằng lịch sử hiển thị có giới hạn, hoặc vùng nhỏ gần con trỏ do Accessibility cung cấp. Đã thêm test giữ ranh giới từ và không sửa bên trong identifier/số.
+
+Đối chiếu thêm [GoNhanh](https://github.com/khaphanspace/gonhanh.org/blob/main/platforms/macos/RustBridge.swift) và [XKey](https://github.com/xmannv/xkey/blob/main/XKey/EventHandling/CharacterInjector.swift): macro/restore tự chịu trách nhiệm phát delimiter; đường async phải không cho phím tiếp theo vượt transaction chưa hoàn tất. NahtKey vẫn giữ đường synchronous proxy, không sao chép queue/sleep. Trên browser, Space sau từ đang theo dõi được gộp với phần chữ chốt và nuốt phím Space gốc đúng một lần; native editor chỉ gộp khi có sửa từ. Chưa coi đây là bằng chứng đã loại bỏ mọi nguyên nhân mất Space ở mọi app; cần thử bàn phím thật trên bản 0.2.1.
