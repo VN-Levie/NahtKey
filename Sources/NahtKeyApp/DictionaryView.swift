@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import NahtKeyCore
 
 struct DictionaryView: View {
@@ -8,6 +10,8 @@ struct DictionaryView: View {
     @State private var selection: UUID?
     @State private var editor: EditorTarget?
     @State private var deletion: CorrectionEntry?
+    @State private var transferMessage: String?
+    @State private var transferFailed = false
 
     private struct EditorTarget: Identifiable {
         let id = UUID()
@@ -37,6 +41,16 @@ struct DictionaryView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 16)
+                Button { importLibrary() } label: {
+                    Label("Nhập…", systemImage: "square.and.arrow.down")
+                }
+                .disabled(store.isReadOnly)
+                .accessibilityIdentifier("import-library")
+                Button { exportLibrary() } label: {
+                    Label("Xuất…", systemImage: "square.and.arrow.up")
+                }
+                .disabled(store.isReadOnly)
+                .accessibilityIdentifier("export-library")
                 Button {
                     editor = EditorTarget(entry: nil)
                 } label: {
@@ -46,6 +60,14 @@ struct DictionaryView: View {
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(store.isReadOnly)
                 .accessibilityIdentifier("add-correction")
+            }
+
+            if let message = transferMessage {
+                Label(message, systemImage: transferFailed ? "exclamationmark.circle" : "checkmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(transferFailed ? Color.red : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
 
             if let message = store.errorMessage {
@@ -157,6 +179,66 @@ struct DictionaryView: View {
             Button("Hủy", role: .cancel) { deletion = nil }
         } message: {
             if let entry = deletion { Text("\(entry.raw) → \(entry.replacement)") }
+        }
+    }
+
+    private func importLibrary() {
+        guard !store.isReadOnly else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Nhập thư viện"
+        panel.prompt = "Nhập"
+        panel.message = "Các mục trùng sẽ dùng giá trị trong tệp nhập."
+        panel.allowedContentTypes = [.json]
+        panel.allowsOtherFileTypes = false
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        present(panel) { response in
+            guard response == .OK, let url = panel.url else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let report = try store.importLibrary(from: url, conflictPolicy: .preferImported)
+                var message = "Đã nhập: \(report.added) thêm, \(report.updated) cập nhật, \(report.unchanged) giữ nguyên."
+                if report.duplicates > 0 { message += " Đã gộp \(report.duplicates) mục trùng." }
+                transferMessage = message
+                transferFailed = false
+            } catch {
+                transferMessage = "Không thể nhập thư viện: \(error.localizedDescription)"
+                transferFailed = true
+            }
+        }
+    }
+
+    private func exportLibrary() {
+        guard !store.isReadOnly else { return }
+        let panel = NSSavePanel()
+        panel.title = "Xuất thư viện"
+        panel.prompt = "Xuất"
+        panel.allowedContentTypes = [.json]
+        panel.allowsOtherFileTypes = false
+        panel.nameFieldStringValue = "NahtKey-library.json"
+        panel.isExtensionHidden = false
+        present(panel) { response in
+            guard response == .OK, let url = panel.url else { return }
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try store.exportLibrary(to: url)
+                transferMessage = "Đã xuất \(store.entries.count) mục."
+                transferFailed = false
+            } catch {
+                transferMessage = "Không thể xuất thư viện: \(error.localizedDescription)"
+                transferFailed = true
+            }
+        }
+    }
+
+    private func present(_ panel: NSSavePanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+        } else {
+            panel.begin(completionHandler: completion)
         }
     }
 
