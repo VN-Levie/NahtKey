@@ -3,6 +3,17 @@ import XCTest
 @testable import NahtKeyApp
 
 final class CaretWordReaderTests: XCTestCase {
+    func testInlineCompletionRequiresTheWholeTrackedWordBeforeSelection() {
+        XCTAssertTrue(CaretWordReader.matchesInlineCompletionPrefix("chu", word: "chu"))
+        XCTAssertTrue(CaretWordReader.matchesInlineCompletionPrefix(" chu", word: "chu"))
+        XCTAssertTrue(CaretWordReader.matchesInlineCompletionPrefix("/chu", word: "chu"))
+        XCTAssertFalse(CaretWordReader.matchesInlineCompletionPrefix("chu", word: "u"))
+        XCTAssertFalse(CaretWordReader.matchesInlineCompletionPrefix("_chu", word: "chu"))
+        XCTAssertFalse(CaretWordReader.matchesInlineCompletionPrefix("9chu", word: "chu"))
+        XCTAssertFalse(CaretWordReader.matchesInlineCompletionPrefix("cu", word: "chu"))
+        XCTAssertFalse(CaretWordReader.matchesInlineCompletionPrefix("chu", word: ""))
+    }
+
     func testWordAtCaretAndPrefixAreSeparated() {
         XCTAssertEqual(CaretWordReader.word(in: "go", selection: CFRange(location: 2, length: 0)), "go")
         XCTAssertEqual(CaretWordReader.word(in: "xin nhận", selection: CFRange(location: 8, length: 0)), "nhận")

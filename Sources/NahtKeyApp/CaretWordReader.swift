@@ -1,9 +1,35 @@
 import ApplicationServices
 import Foundation
 
-/// Read only the word immediately before a collapsed caret, on an explicit
-/// reconversion key. Nothing is persisted or logged. Secure controls are excluded.
+/// Bounded context for reconversion and selected inline completion. Nothing is
+/// persisted or logged. Secure controls are excluded before reading text.
 enum CaretWordReader {
+    static func hasInlineCompletion(after word: String, in element: AXUIElement) -> Bool {
+        guard !word.isEmpty, word.count <= 128 else { return false }
+        AXUIElementSetMessagingTimeout(element, 0.02)
+        // The usual collapsed-caret path needs only this metadata query.
+        guard let selectionValue = attribute(kAXSelectedTextRangeAttribute, of: element),
+              CFGetTypeID(selectionValue) == AXValueGetTypeID() else { return false }
+        var selection = CFRange()
+        guard AXValueGetValue(selectionValue as! AXValue, .cfRange, &selection),
+              selection.location >= word.utf16.count, selection.length > 0,
+              selection.length <= 4096,
+              let role = attribute(kAXRoleAttribute, of: element) as? String,
+              [kAXTextFieldRole as String, kAXComboBoxRole as String].contains(role),
+              (attribute(kAXSubroleAttribute, of: element) as? String) != kAXSecureTextFieldSubrole as String,
+              (attribute("AXProtectedContent", of: element) as? Bool) != true else { return false }
+        let start = max(0, selection.location - word.utf16.count - 1)
+        let range = CFRange(location: start, length: selection.location - start)
+        guard let left = text(in: range, of: element) else { return false }
+        return matchesInlineCompletionPrefix(left, word: word)
+    }
+
+    static func matchesInlineCompletionPrefix(_ left: String, word: String) -> Bool {
+        guard !word.isEmpty, word.count <= 128, left.hasSuffix(word) else { return false }
+        let preceding = left.dropLast(word.count).last
+        return preceding.map { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? true
+    }
+
     static func word(beforeCaretIn element: AXUIElement) -> String? {
         AXUIElementSetMessagingTimeout(element, 0.02)
         let subrole = attribute(kAXSubroleAttribute, of: element) as? String

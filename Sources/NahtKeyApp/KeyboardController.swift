@@ -22,7 +22,7 @@ final class KeyboardController: ObservableObject {
     private var lastInputPID: pid_t?
     private let ownBundleID = Bundle.main.bundleIdentifier ?? "vn.nahtkey.mac"
     private let eventSource = KeyboardController.makeEventSource()
-    private var protectAutocomplete = false
+    private var useSelectionReplacement = false
     private var consumedKeys = Set<Int64>()
     private var focusObserver: AXObserver?
     private var focusApplication: AXUIElement?
@@ -275,7 +275,7 @@ final class KeyboardController: ObservableObject {
             engine.reset()
             return pass
         }
-        protectAutocomplete = ReplacementPlan.protectsAutocomplete(bundleID: activeApp.bundleIdentifier ?? "")
+        useSelectionReplacement = ReplacementPlan.usesSelectionReplacement(bundleID: activeApp.bundleIdentifier ?? "")
         guard flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty else {
             engine.reset()
             return pass
@@ -289,17 +289,18 @@ final class KeyboardController: ObservableObject {
             return nil
         }
         if [36, 48, 49, 76].contains(key) { // Return, Tab, Space, keypad Return
+            let previousWord = engine.rendered
             let hadWord = !engine.rendered.isEmpty
             let boundary: Character = key == 49 ? " " : (key == 48 ? "\t" : "\n")
             let edit = engine.finish(boundary: boundary)
-            if key == 49 && hadWord && (protectAutocomplete || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
+            if key == 49 && hadWord && (useSelectionReplacement || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
                 // Own the completed word AND its space as one text transaction.
                 // Do not mix synthetic word replacement with a physical delimiter.
-                post(ReplacementPlan.committingSpace(after: edit), proxy: proxy)
+                post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
                 consumedKeys.insert(key)
                 return nil
             }
-            post(edit, proxy: proxy)
+            post(edit, proxy: proxy, previousWord: previousWord)
             if key != 49 { engine.reset() } // Return/Tab may submit or move to another field.
             return pass
         }
@@ -316,14 +317,16 @@ final class KeyboardController: ObservableObject {
               let ascii = character.asciiValue else { engine.reset(); return pass }
         if (65...90).contains(ascii) || (97...122).contains(ascii) || (48...57).contains(ascii) {
             resumeWordIfNeeded(for: character)
+            let previousWord = engine.rendered
             let edit = engine.process(character)
             if edit.deleteCount == 0 && edit.insertText == text { return pass }
-            post(edit, proxy: proxy)
+            post(edit, proxy: proxy, previousWord: previousWord)
             consumedKeys.insert(key)
             return nil
         }
         if ascii >= 32 && ascii < 127 {
-            post(engine.finish(boundary: character), proxy: proxy)
+            let previousWord = engine.rendered
+            post(engine.finish(boundary: character), proxy: proxy, previousWord: previousWord)
         } else {
             engine.reset()
         }
@@ -340,9 +343,14 @@ final class KeyboardController: ObservableObject {
         engine.resume(word)
     }
 
-    private func post(_ edit: TextEdit, proxy: CGEventTapProxy) {
+    private func post(_ edit: TextEdit, proxy: CGEventTapProxy, previousWord: String = "") {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return }
-        for operation in ReplacementPlan.operations(for: edit, protectAutocomplete: protectAutocomplete) {
+        let clearCompletion = useSelectionReplacement && edit.deleteCount > 0 && !edit.insertText.isEmpty
+            && !secureFocus && focusedElement.map {
+                CaretWordReader.hasInlineCompletion(after: previousWord, in: $0)
+            } == true
+        for operation in ReplacementPlan.operations(for: edit, useSelection: useSelectionReplacement,
+                                                     clearInlineCompletion: clearCompletion) {
             switch operation {
             case .backspace:
                 postKey(51, down: true, proxy: proxy)

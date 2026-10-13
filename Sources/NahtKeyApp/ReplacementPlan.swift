@@ -7,24 +7,22 @@ enum ReplacementOperation: Equatable {
     case selectPreviousCharacter
 }
 
-/// A complete synchronous transaction. It never includes the physical delimiter;
-/// Quartz inserts these operations before the event returned by the tap callback.
+/// Events posted together through the tap proxy. Selection replacement keeps
+/// the field nonempty without assuming an invisible guard was actually inserted.
 enum ReplacementPlan {
-    static let selectionGuard = "\u{202F}"
-
     static func committingSpace(after edit: TextEdit) -> TextEdit {
         TextEdit(deleteCount: edit.deleteCount, insertText: edit.insertText + " ")
     }
 
-    static func operations(for edit: TextEdit, protectAutocomplete: Bool) -> [ReplacementOperation] {
+    static func operations(for edit: TextEdit, useSelection: Bool,
+                           clearInlineCompletion: Bool = false) -> [ReplacementOperation] {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return [] }
         var result: [ReplacementOperation] = []
-        if protectAutocomplete && edit.deleteCount > 0 && !edit.insertText.isEmpty {
-            // Commit/cancel an inline suggestion without deleting the typed prefix.
-            // Select the old suffix AND the temporary guard, then replace in one
-            // insertion. Unlike backspacing the first letter, the field never empties.
-            result.append(.text(selectionGuard))
-            result += Array(repeating: .selectPreviousCharacter, count: edit.deleteCount + 1)
+        if useSelection && edit.deleteCount > 0 && !edit.insertText.isEmpty {
+            // Only clear a suggestion when the host verified a nonempty selection
+            // immediately after the tracked word. Never add a speculative delete.
+            if clearInlineCompletion { result.append(.backspace) }
+            result += Array(repeating: .selectPreviousCharacter, count: edit.deleteCount)
         } else {
             result += Array(repeating: .backspace, count: edit.deleteCount)
         }
@@ -47,7 +45,7 @@ enum ReplacementPlan {
         return result
     }
 
-    static func protectsAutocomplete(bundleID: String) -> Bool {
+    static func usesSelectionReplacement(bundleID: String) -> Bool {
         // Deliberately scoped. A generic backspace path remains for native editors.
         let browsers = ["com.apple.Safari", "com.google.Chrome", "com.microsoft.edgemac",
                         "org.mozilla.firefox", "com.brave.Browser", "com.vivaldi.Vivaldi",
