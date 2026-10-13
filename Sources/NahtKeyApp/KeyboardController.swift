@@ -28,9 +28,11 @@ final class KeyboardController: ObservableObject {
     private var focusApplication: AXUIElement?
     private var focusedElement: AXUIElement?
     private var secureFocus = false
+    private var wantsEnabled = true
     private static let eventMarker: Int64 = 0x4E4148544B4559
 
     init() {
+        wantsEnabled = UserDefaults.standard.object(forKey: "typingEnabled") as? Bool ?? true
         inputMethod = InputMethod(rawValue: UserDefaults.standard.string(forKey: "inputMethod") ?? "vni") ?? .vni
         engine.inputMethod = inputMethod
         refreshEnvironment()
@@ -44,6 +46,7 @@ final class KeyboardController: ObservableObject {
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshEnvironment() }
         }
+        if wantsEnabled { start() }
     }
 
     func updateCorrections(_ corrections: [String: String]) {
@@ -52,6 +55,7 @@ final class KeyboardController: ObservableObject {
     }
 
     func refreshEnvironment() {
+        let previouslyPermitted = hasPermission
         hasPermission = AXIsProcessTrusted()
         _ = currentInputApplication()
         if IsSecureEventInputEnabled() { engine.reset() }
@@ -62,6 +66,7 @@ final class KeyboardController: ObservableObject {
             return competitors.contains(id) || name.lowercased().contains("evkey") ? name : nil
         }.sorted()
         if !hasPermission && isEnabled { stop() }
+        if hasPermission && !previouslyPermitted && wantsEnabled { start(refresh: false) }
     }
 
     func requestPermission() {
@@ -79,6 +84,8 @@ final class KeyboardController: ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool) {
+        wantsEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "typingEnabled")
         if enabled { start() } else { stop() }
     }
 
@@ -153,8 +160,8 @@ final class KeyboardController: ObservableObject {
         if secureFocus { engine.reset() }
     }
 
-    private func start() {
-        refreshEnvironment()
+    private func start(refresh: Bool = true) {
+        if refresh { refreshEnvironment() }
         guard hasPermission else {
             errorMessage = "Cấp quyền Trợ năng cho NahtKey để bật bộ gõ."
             return
