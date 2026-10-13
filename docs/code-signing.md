@@ -18,6 +18,12 @@ Khi cung cấp identity, script dùng đúng identity đó và dừng nếu ký 
 - Chuyển từ ad-hoc sang certificate là một lần đổi danh tính, nên có thể phải cấp lại quyền một lần nữa.
 - Không đưa certificate private key, mật khẩu Keychain, token Apple hoặc file export identity vào Git.
 
-Kiểm tra ngày 13/10/2026: máy chưa có code-signing identity hợp lệ. Chưa tạo hoặc cài chứng chỉ mới, chưa đổi trust trong Keychain. Bản 0.2 đang chạy vẫn giữ nguyên chữ ký đã được người dùng cấp quyền.
+Ngày 13/10/2026, sau khi người dùng chấp thuận, đã tạo **NahtKey Local Development** trong login Keychain. Certificate RSA 3072/SHA-256, chỉ digitalSignature/codeSigning; trust ở user domain chỉ áp dụng codeSign. Khóa riêng cho phép `/usr/bin/codesign` sử dụng, không được lưu trong repo. Tệp tạm tạo khóa và archive được xóa sau import; mật khẩu archive chỉ truyền qua stdin/bộ nhớ, không có trong argv/log.
+
+`scripts/setup-local-signing.swift` tạo hoặc tái sử dụng đúng danh tính này và lưu fingerprint **công khai** vào Git config local `nahtkey.signingIdentity`; không xoay khóa khi chạy lại. Script chỉ được chạy sau khi người dùng đồng ý thay đổi Keychain. Build sử dụng cấu hình local này trừ khi có `NAHTKEY_SIGN_IDENTITY` override.
+
+Đã ký hai executable có mã khác nhau và app bằng cùng certificate, rồi dùng `codesign --verify -R` xác minh chúng đều thỏa cùng designated requirement: bundle identifier + certificate root. Requirement không còn phụ thuộc hash mỗi binary.
+
+Sau khi người dùng cấp quyền cho identity mới, đã kiểm tra cập nhật thật từ build 3 sang build 4: bundle hash khác, vẫn thỏa requirement cũ; thay app trong `/Applications`, mở lại và bật VNI thành công, không cần cấp quyền lại. Đây là kiểm chứng giữ quyền trên máy này với chứng chỉ hiện tại. Không xóa/tạo lại identity hoặc quay về ad-hoc nếu muốn tiếp tục giữ cùng danh tính.
 
 Tham khảo: [TN3127 – Requirements](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements), [TN2206 – Code Signing In Depth](https://developer.apple.com/library/archive/technotes/tn2206/).

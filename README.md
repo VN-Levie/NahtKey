@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2 thêm Telex, logo riêng, chế độ chạy nền và các sửa lỗi tương thích trình duyệt.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.1 bổ sung sửa lại từ trước con trỏ và chốt dấu cách cùng giao dịch trên trình duyệt, bên cạnh Telex, logo và chế độ chạy nền của 0.2.
 
 ## Dùng bản đầu
 
@@ -54,9 +54,9 @@ swift test
 open dist/NahtKey.app
 ```
 
-`build-app.sh` tạo app bundle và ký ad-hoc cho sử dụng trên máy phát triển. Đây chưa phải bản phân phối được notarize. Sau khi đổi bản build, macOS có thể yêu cầu cấp lại quyền Trợ năng. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
+`build-app.sh` tạo app bundle và ký bằng identity được cấu hình. Bản cài 0.2.1 trên máy này dùng chứng chỉ nội bộ cố định; đã kiểm tra cập nhật sang bundle có hash khác vẫn giữ quyền Trợ năng. Đây chưa phải bản phân phối được notarize. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
 
-Để ký bằng danh tính cố định có sẵn trong Keychain, đặt `NAHTKEY_SIGN_IDENTITY`. Xem [hướng dẫn ký code](docs/code-signing.md); máy hiện chưa có identity hợp lệ, nên bản đang chạy chưa giải quyết việc giữ quyền qua mọi bản cập nhật.
+Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git config local của repo; chỉ ký ad-hoc nếu cả hai chưa có. Trên máy phát triển này đã thiết lập certificate **NahtKey Local Development** theo chấp thuận người dùng. Xem [hướng dẫn ký code](docs/code-signing.md).
 
 - `Sources/NahtKeyCore`: lõi VNI và sửa lỗi, độc lập với giao diện/macOS.
 - `Sources/NahtKeyApp`: SwiftUI, lưu thư viện, lớp event tap macOS.
@@ -66,6 +66,14 @@ open dist/NahtKey.app
 - `Reference/OpenKey`: bản mã nguồn OpenKey được giữ riêng để tham khảo, không nằm trong target build hay Git của NahtKey. Nguồn: https://github.com/tuyenvm/OpenKey, commit `89c2fd3bf258562f2349f89b49d81e2f140c3fc3`. Giữ nguyên giấy phép và lịch sử của nguồn tham khảo trong thư mục này.
 
 NahtKey không liên kết hay đóng gói mã C++/Objective-C của OpenKey.
+
+## Quay lại sửa từ và giữ dấu cách trong 0.2.1
+
+- Gõ `go `, xóa Space, gõ `4` → `gõ`; `nhận `, xóa Space, gõ `4` → `nhẫn`. Telex dùng `x` thay `4`.
+- Khi quay lại bằng chuột/phím điều hướng, chỉ khôi phục một từ hoàn chỉnh ngay bên trái con trỏ và không có vùng bôi đen. Cần ứng dụng cung cấp thông tin Accessibility phù hợp; không đoán khi thiếu thông tin.
+- Nhớ tối đa 256 ký tự hiển thị trong phiên để xử lý Backspace. Khi cần nhận lại từ ở vị trí khác, đọc vùng nhỏ trước con trỏ, không log/lưu nội dung. Trường bảo vệ/mật khẩu không được đọc hoặc chuyển đổi.
+- Không sửa phần chữ nằm trong mã có số hoặc dấu gạch dưới. Từ được nhận lại không chạy các alias phím gốc vì không biết lịch sử phím ban đầu.
+- Trên browser, dấu cách sau từ đang theo dõi đi cùng một giao dịch chữ; Space không bị phát lần thứ hai. Return/Tab vẫn giữ chức năng gửi/chuyển ô và hủy ngữ cảnh cũ.
 
 ## Kiểm tra bản 0.1 trên máy phát triển
 
