@@ -52,3 +52,17 @@ Người dùng tiếp tục báo `go ` + xóa Space + `4` thành `go4`, `nhận4
 Đối chiếu thêm [GoNhanh](https://github.com/khaphanspace/gonhanh.org/blob/main/platforms/macos/RustBridge.swift) và [XKey](https://github.com/xmannv/xkey/blob/main/XKey/EventHandling/CharacterInjector.swift): macro/restore tự chịu trách nhiệm phát delimiter; đường async phải không cho phím tiếp theo vượt transaction chưa hoàn tất. NahtKey vẫn giữ đường synchronous proxy, không sao chép queue/sleep. Trên browser, Space sau từ đang theo dõi được gộp với phần chữ chốt và nuốt phím Space gốc đúng một lần; native editor chỉ gộp khi có sửa từ. Chưa coi đây là bằng chứng đã loại bỏ mọi nguyên nhân mất Space ở mọi app; cần thử bàn phím thật trên bản 0.2.1.
 
 Người dùng đã thử bản 0.2.1 và xác nhận **“Đã cấp lại, cả ba trường hợp đúng”** cho `go + Space + Backspace + 4`, `nhận + Space + Backspace + 4` và gõ nhanh `gõ từ` nhiều lần. Bộ kiểm thử hiện có 44 test; các guard sửa cuối được chạy lại ở suite liên quan. Lỗi gián đoạn vẫn cần theo dõi trong sử dụng thực tế, không suy diễn một lượt thử thành đảm bảo mọi ứng dụng.
+
+## Chuỗi liền nhau và mã có số
+
+Người dùng báo `matkhau123` bị thành `matkhảu`. Tham khảo [VietTelex tại commit 56861da](https://github.com/ptrinh/viettelex/tree/56861da1f13767ba6dca6008ddb604c91a44604c): `TelexEngine.feed` dùng tính hợp lệ của tiền tố âm tiết, ngừng các modifier sau khi chuỗi không còn có thể thành một âm tiết, rồi giữ/khôi phục raw. Cần kiểm tra tiền tố đang gõ, không dùng kiểm tra từ hoàn chỉnh quá sớm vì sẽ phá `ngh`, `qu`, `gi`, `tie`, `uo`.
+
+NahtKey dùng bộ kiểm tra cấu trúc riêng, không nhập bảng vần, từ điển hay implementation của VietTelex. Alias cá nhân vẫn được xét tại ranh giới từ kể cả khi token không phải âm tiết hợp lệ. Các chuỗi trùng cách gõ VNI hợp lệ như `a4`, `ban5` không thể phân biệt ý định tuyệt đối; vẫn được xử lý như VNI, không áp dụng quy tắc chung “có chữ số thì giữ nguyên”.
+
+## Viết tắt và quy tắc từ có dấu
+
+Người dùng phát hiện guard âm tiết quá chặt làm mất `d9c → đc` và `dt9 → đt`. Bản 0.2.3 cho phép một nhóm viết tắt d/đ hai chữ rõ ràng, thay vì vô hiệu guard với mọi mã phụ âm. Bổ sung hồi quy cho 9 ở đầu/cuối, chữ hoa, và bảo toàn `cmd9`, `model123`, `matkhau123`.
+
+Ảnh người dùng cho thấy không thêm được `càu → của` do giới hạn ASCII. Store/UI nay nhận chữ/số Unicode và chuẩn hóa NFC; loader không tự ghi đè tệp có alias xung đột sau chuẩn hóa. Tại ranh giới từ: raw exact trước, từ Unicode đã ghép sau, rồi kết quả thông thường. Quy tắc chỉ chạy một lần; nhận lại từ cũ chưa biết raw không tự chạy lại các alias.
+
+Đã lưu `càu → của` qua giao diện thật vào thư viện của người dùng và quan sát ô thử trả `đc đc đt đt matkhau123 của bạn` cho `d9c dc9 dt9 d9t matkhau123 cau2 abn5 `. Sau nâng cấp 0.2.4, quy tắc vẫn còn; bộ gõ tự bật khi mở app với quyền có sẵn. Bản này ghi nhớ lựa chọn bật/tắt trong preferences; chờ quyền nếu chưa có. Toàn bộ 70 kiểm thử đạt trước khi đóng gói.

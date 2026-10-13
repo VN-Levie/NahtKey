@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.1 bổ sung sửa lại từ trước con trỏ và chốt dấu cách cùng giao dịch trên trình duyệt, bên cạnh Telex, logo và chế độ chạy nền của 0.2.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.4 mặc định bật bộ gõ và nhớ trạng thái bật/tắt, đồng thời giữ chuỗi mã, hỗ trợ viết tắt `đc/đt/đk…` và quy tắc cá nhân bằng phím gốc hoặc từ có dấu.
 
 ## Dùng bản đầu
 
@@ -13,25 +13,27 @@ Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.2.1
 5. Dùng icon NahtKey trên menu bar để bật/tắt bộ gõ, đổi VNI/Telex hoặc mở bảng từ cá nhân.
 6. Bấm **X** hoặc **Cmd+Q** để ẩn cửa sổ và icon Dock, vẫn giữ bộ gõ chạy. Chọn **Thoát hoàn toàn NahtKey** trong menu bar để thoát thật.
 
-NahtKey khởi động với bộ gõ tắt. Bảng từ và ô thử VNI hoạt động trước khi cấp quyền. Ô thử dùng cùng lõi xử lý, nhưng không thay thế việc kiểm tra bắt phím trong ứng dụng khác.
+NahtKey mặc định bật bộ gõ và nhớ lựa chọn bật/tắt của bạn khi mở lại. Nếu chưa có quyền, bộ gõ chờ quyền; khi quyền được cấp sẽ tự bật nếu trạng thái mong muốn là bật. Bảng từ và ô thử VNI hoạt động trước khi cấp quyền. Ô thử dùng cùng lõi xử lý, nhưng không thay thế việc kiểm tra bắt phím trong ứng dụng khác.
 
 ## Bảng sửa lỗi cá nhân
 
 - Thêm, sửa, đổi chuỗi gõ nhầm, xóa có xác nhận và tìm kiếm.
-- Chuỗi gõ nhầm gồm chữ cái ASCII/chữ số, dài 1–64 ký tự, phân biệt hoa/thường.
+- Chuỗi gõ hoặc từ cần sửa gồm chữ cái/chữ số Unicode, dài 1–64 ký tự, phân biệt hoa/thường. Có thể lưu `abn5 → bạn` hoặc `càu → của`; dữ liệu được chuẩn hóa NFC để tránh hai mục nhìn giống nhau nhưng khác mã Unicode.
 - Từ thay thế dài 1–128 ký tự, không có khoảng trắng hoặc ký tự điều khiển.
-- So khớp đúng chuỗi phím gốc, sửa khi gặp Space, dấu câu, Tab hoặc Enter; không đoán từ gần giống.
+- So khớp phím gốc trước; nếu không có thì xét đúng từ đã ghép dấu cho các mục có chữ Unicode. Sửa khi gặp Space, dấu câu, Tab hoặc Enter; không đoán từ gần giống.
 - 13 quy tắc ban đầu, gồm `abn5/ab5n → bạn`, `haoc85/haoc75 → hoặc`, `torng → trong`; xem [ghi nhận lỗi gõ](docs/typing-findings.md). Khi nâng cấp từ 0.1, bổ sung một lần và bảo toàn các mục người dùng đã sửa; không tự thêm lại mục đã xóa.
 - Dữ liệu: `~/Library/Application Support/NahtKey/corrections.json`.
 - Ghi tệp nguyên tử trước khi cập nhật giao diện. Nếu tệp không đọc được, ứng dụng báo lỗi và giữ nguyên tệp thay vì ghi đè.
 
-## Kiểu gõ và giới hạn của bản 0.2
+## Kiểu gõ và giới hạn hiện tại
 
 Lõi hỗ trợ dấu thanh `1–5`, mũ `6`, móc `7`, trăng `8`, đ `9`, bỏ dấu/hình dấu `0`, thứ tự dấu linh hoạt, chuyển vị trí dấu khi thêm chữ, chữ hoa và Backspace theo ký tự hiển thị.
 
 Telex hỗ trợ `aa/aw/ee/oo/ow/uw/dd`, dấu `s/f/r/x/j`, bỏ dấu `z`, chữ hoa và gõ dấu linh hoạt. Các nhóm như `uu7/uuw → ưu`, `huou7/huouw → hươu`, `luoi74/luoiwx → lưỡi` có kiểm thử hồi quy.
 
-- Chưa có tự nhận biết tiếng Anh hoặc kiểm tra chính tả. Tắt VNI khi nhập mã/tên chứa chữ và số nếu cần giữ nguyên.
+- VNI kiểm tra cấu trúc tiền tố âm tiết: `matkhau123`, `model123`, `abc123` giữ nguyên. Đây chưa phải bộ nhận diện tiếng Anh/từ điển chính tả hoàn chỉnh; Telex chưa có lớp tự nhận diện English/code tương đương.
+- Ngoại lệ viết tắt có giới hạn: `d9c/dc9 → đc`, `dt9/d9t → đt`, tương tự `đk/đg/đh/đv/đb/đs`. Không nới lỏng mọi chuỗi phụ âm hoặc mã như `cmd9`.
+- Chuỗi trùng VNI hợp lệ như `a4` hoặc `ban5` vẫn được hiểu là cách gõ tiếng Việt. Tắt bộ gõ nếu muốn giữ nguyên những mã mơ hồ này.
 - Cách đặt dấu `hòa`, `khỏe`, `thủy` hiện cố định.
 - Sau Backspace, vẫn tiếp tục ghép dấu nhưng tạm bỏ so khớp chuỗi phím gốc cho tới từ kế tiếp, vì lịch sử phím đã không còn tương ứng trực tiếp với chữ hiển thị.
 - Bộ đệm giới hạn 128 ký tự đầu vào mỗi từ; chuỗi dài hơn được chuyển tiếp nguyên trạng tới ranh giới từ kế tiếp.
@@ -54,7 +56,7 @@ swift test
 open dist/NahtKey.app
 ```
 
-`build-app.sh` tạo app bundle và ký bằng identity được cấu hình. Bản cài 0.2.1 trên máy này dùng chứng chỉ nội bộ cố định; đã kiểm tra cập nhật sang bundle có hash khác vẫn giữ quyền Trợ năng. Đây chưa phải bản phân phối được notarize. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
+`build-app.sh` tạo app bundle và ký bằng identity được cấu hình. Từ bản 0.2.1, máy này dùng chứng chỉ nội bộ cố định; đã kiểm tra cập nhật sang bundle có hash khác vẫn giữ quyền Trợ năng. Đây chưa phải bản phân phối được notarize. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
 
 Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git config local của repo; chỉ ký ad-hoc nếu cả hai chưa có. Trên máy phát triển này đã thiết lập certificate **NahtKey Local Development** theo chấp thuận người dùng. Xem [hướng dẫn ký code](docs/code-signing.md).
 
@@ -66,6 +68,27 @@ Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git 
 - `Reference/OpenKey`: bản mã nguồn OpenKey được giữ riêng để tham khảo, không nằm trong target build hay Git của NahtKey. Nguồn: https://github.com/tuyenvm/OpenKey, commit `89c2fd3bf258562f2349f89b49d81e2f140c3fc3`. Giữ nguyên giấy phép và lịch sử của nguồn tham khảo trong thư mục này.
 
 NahtKey không liên kết hay đóng gói mã C++/Objective-C của OpenKey.
+
+## Thứ tự xử lý và tránh xung đột
+
+- Lưu riêng chuỗi phím gốc và chữ đang hiển thị. Quy tắc ghép dấu/giữ mã không sửa mất bản gốc.
+- Trong lúc gõ, VNI chỉ tiếp tục ghép dấu khi chuỗi còn có thể là một âm tiết. Nếu đã rõ không thể hợp lệ, giữ/khôi phục phím gốc cho token đó.
+- Khi gặp ranh giới từ, tra **đúng toàn bộ chuỗi phím gốc** trong thư viện cá nhân trước. Nếu không khớp, xét đúng từ có dấu đang hiển thị (cho alias Unicode). Nếu cả hai không khớp, giữ kết quả VNI hoặc kết quả nguyên văn. Ví dụ `cau2` khớp cả quy tắc raw `cau2` và quy tắc từ `càu` thì raw thắng.
+- Mỗi từ chỉ chọn một kết quả cuối. Kết quả `a → b` không tiếp tục chạy qua quy tắc `b → c`; alias tiền tố không chạy khi người dùng còn gõ một token dài hơn.
+- Từ được khôi phục khi quay lại sửa không áp alias phím gốc vì không biết chính xác các phím đã tạo ra nó. Trường mật khẩu, vùng bảo vệ, thao tác chọn/di chuyển và phím tắt vẫn là ranh giới xử lý riêng.
+
+## Credit và các dự án tham khảo
+
+Cảm ơn các tác giả đã công khai mã nguồn và kinh nghiệm xử lý bộ gõ:
+
+| Dự án | Phần được tham khảo | Giấy phép của dự án gốc |
+|---|---|---|
+| [OpenKey — Mai Vũ Tuyên](https://github.com/tuyenvm/OpenKey) | Bảo vệ autocomplete, thay phần chữ được chọn, xử lý phím kết thúc sau macro | [GPL-3.0](https://github.com/tuyenvm/OpenKey/blob/master/LICENSE) |
+| [GoNhanh — khaphanspace](https://github.com/khaphanspace/gonhanh.org) | Quyền sở hữu dấu cách/delimiter trong kết quả sửa từ | [BSD-3-Clause](https://github.com/khaphanspace/gonhanh.org/blob/main/LICENSE) |
+| [XKey — xmannv](https://github.com/xmannv/xkey) | Giữ thứ tự giữa thay chữ và phím tiếp theo, giới hạn của editor khi gửi sự kiện | [MIT](https://github.com/xmannv/xkey/blob/main/LICENSE) |
+| [VietTelex — Phil Trinh](https://github.com/ptrinh/viettelex) | Kiểm tra tiền tố âm tiết khi đang gõ, giữ chuỗi English/code và khôi phục phím gốc | [MIT](https://github.com/ptrinh/viettelex/blob/main/LICENSE) |
+
+NahtKey triển khai các mô-đun Swift riêng dựa trên những bài học về hành vi này; hiện không nhập trực tiếp engine, bộ từ điển hay bảng sinh tự động từ các dự án trên. `Reference/OpenKey` là bản nguồn tham khảo riêng, giữ nguyên giấy phép gốc và không được đưa vào app/Git của NahtKey. Nếu về sau sử dụng trực tiếp một phần mã hoặc dữ liệu, phần đó phải được ghi nhận cụ thể cùng thông báo bản quyền và giấy phép tương ứng. EVKey được tham khảo qua tài liệu/issue công khai; không có engine macOS đầy đủ trong nguồn công khai đã kiểm tra.
 
 ## Quay lại sửa từ và giữ dấu cách trong 0.2.1
 
