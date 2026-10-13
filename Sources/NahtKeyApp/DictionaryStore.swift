@@ -38,11 +38,11 @@ final class DictionaryStore: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .invalidRaw:
-                return "Chuỗi gõ nhầm cần từ 1–64 chữ cái A–Z, a–z hoặc chữ số, không có khoảng trắng."
+                return "Chuỗi gõ hoặc từ cần sửa phải có 1–64 chữ cái (có thể có dấu) hoặc chữ số, không có khoảng trắng hay dấu câu."
             case .invalidReplacement:
                 return "Từ thay thế cần từ 1–128 ký tự, không có khoảng trắng hoặc ký tự điều khiển."
             case .duplicateRaw:
-                return "Chuỗi gõ nhầm này đã có trong thư viện. Hãy sửa mục hiện có."
+                return "Chuỗi gõ hoặc từ này đã có trong thư viện. Hãy sửa mục hiện có."
             case .entryMissing:
                 return "Không tìm thấy mục này. Hãy chọn lại trong thư viện."
             case .invalidDocument:
@@ -64,17 +64,19 @@ final class DictionaryStore: ObservableObject {
 
     func add(raw: String, replacement: String) throws {
         let normalized = try validatedRaw(raw, excluding: nil)
-        try Self.validateReplacement(replacement)
-        try commit(entries + [CorrectionEntry(raw: normalized, replacement: replacement)])
+        let normalizedReplacement = replacement.precomposedStringWithCanonicalMapping
+        try Self.validateReplacement(normalizedReplacement)
+        try commit(entries + [CorrectionEntry(raw: normalized, replacement: normalizedReplacement)])
     }
 
     func update(id: UUID, raw: String, replacement: String) throws {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { throw StoreError.entryMissing }
         let normalized = try validatedRaw(raw, excluding: id)
-        try Self.validateReplacement(replacement)
+        let normalizedReplacement = replacement.precomposedStringWithCanonicalMapping
+        try Self.validateReplacement(normalizedReplacement)
         var updated = entries
         updated[index].raw = normalized
-        updated[index].replacement = replacement
+        updated[index].replacement = normalizedReplacement
         try commit(updated)
     }
 
@@ -84,15 +86,23 @@ final class DictionaryStore: ObservableObject {
     }
 
     private func validatedRaw(_ value: String, excluding id: UUID?) throws -> String {
-        try Self.validateRaw(value)
-        guard !entries.contains(where: { $0.id != id && $0.raw == value }) else { throw StoreError.duplicateRaw }
-        return value
+        let normalized = value.precomposedStringWithCanonicalMapping
+        try Self.validateRaw(normalized)
+        guard !entries.contains(where: { $0.id != id && $0.raw == normalized }) else { throw StoreError.duplicateRaw }
+        return normalized
     }
 
     private static func validateRaw(_ value: String) throws {
-        guard (1...64).contains(value.utf8.count), value.utf8.allSatisfy({ byte in
-            (65...90).contains(byte) || (97...122).contains(byte) || (48...57).contains(byte)
-        }) else { throw StoreError.invalidRaw }
+        guard (1...64).contains(value.count), value.allSatisfy({ $0.isLetter || $0.isNumber }),
+              value.unicodeScalars.allSatisfy({ scalar in
+                  switch scalar.properties.generalCategory {
+                  case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
+                       .decimalNumber, .letterNumber, .otherNumber, .nonspacingMark, .spacingMark, .enclosingMark:
+                      return true
+                  default:
+                      return false
+                  }
+              }) else { throw StoreError.invalidRaw }
     }
 
     private static func validateReplacement(_ value: String) throws {
@@ -104,7 +114,7 @@ final class DictionaryStore: ObservableObject {
 
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            let defaults = SuggestedCorrections.pairs.map { CorrectionEntry(raw: $0.0, replacement: $0.1) }
+            let defaults = SuggestedCorrections.pairs.map { Self.canonicalized(CorrectionEntry(raw: $0.0, replacement: $0.1)) }
             seedRevision = SuggestedCorrections.revision
             do {
                 try commit(defaults)
@@ -120,13 +130,14 @@ final class DictionaryStore: ObservableObject {
             guard document.version == 1 else { throw StoreError.unsupportedVersion }
             var aliases = Set<String>()
             var identifiers = Set<UUID>()
-            for entry in document.entries {
+            let normalizedEntries = document.entries.map(Self.canonicalized)
+            for entry in normalizedEntries {
                 try Self.validateRaw(entry.raw)
                 try Self.validateReplacement(entry.replacement)
                 guard aliases.insert(entry.raw).inserted,
                       identifiers.insert(entry.id).inserted else { throw StoreError.invalidDocument }
             }
-            entries = document.entries.sorted { $0.raw < $1.raw }
+            entries = normalizedEntries.sorted { $0.raw < $1.raw }
             seedRevision = document.seedRevision ?? 0
         } catch {
             isReadOnly = true
@@ -145,9 +156,14 @@ final class DictionaryStore: ObservableObject {
         }
     }
 
+    private static func canonicalized(_ entry: CorrectionEntry) -> CorrectionEntry {
+        CorrectionEntry(id: entry.id, raw: entry.raw.precomposedStringWithCanonicalMapping,
+                        replacement: entry.replacement.precomposedStringWithCanonicalMapping)
+    }
+
     private func commit(_ proposed: [CorrectionEntry]) throws {
         guard !isReadOnly else { throw StoreError.readOnly }
-        let sorted = proposed.sorted { $0.raw < $1.raw }
+        let sorted = proposed.map(Self.canonicalized).sorted { $0.raw < $1.raw }
         do {
             let directory = fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

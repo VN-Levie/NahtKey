@@ -30,7 +30,7 @@ struct DictionaryView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Thư viện cá nhân")
                         .font(.title2.weight(.semibold))
-                    Text("Sửa chuỗi gõ nhầm khi kết thúc từ.")
+                    Text("Sửa chuỗi gõ hoặc từ khi kết thúc từ.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -59,7 +59,7 @@ struct DictionaryView: View {
             HStack {
                 HStack(spacing: 7) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Tìm chuỗi gõ nhầm hoặc từ thay thế", text: $query)
+                    TextField("Tìm chuỗi gõ, từ cần sửa hoặc từ thay thế", text: $query)
                         .textFieldStyle(.plain)
                         .accessibilityLabel("Tìm trong thư viện")
                     if !query.isEmpty {
@@ -79,7 +79,7 @@ struct DictionaryView: View {
             }
 
             Table(filteredEntries, selection: $selection) {
-                TableColumn("Chuỗi gõ nhầm") { entry in
+                TableColumn("Chuỗi gõ hoặc từ cần sửa") { entry in
                     Text(entry.raw)
                         .font(.system(.body, design: .monospaced))
                         .onTapGesture(count: 2) { edit(entry) }
@@ -128,7 +128,7 @@ struct DictionaryView: View {
                 .disabled(selectedEntry == nil || store.isReadOnly)
                 .accessibilityIdentifier("delete-correction")
                 Spacer()
-                Text("Ví dụ: abn5 hoặc ab5n → bạn")
+                Text("Ví dụ: abn5 → bạn · càu → của")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -189,20 +189,20 @@ private struct CorrectionEditor: View {
                 .font(.title2.weight(.semibold))
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("Chuỗi gõ nhầm").font(.headline)
-                TextField("Ví dụ: abn5", text: $raw)
+                Text("Chuỗi gõ hoặc từ cần sửa").font(.headline)
+                TextField("Ví dụ: abn5 hoặc càu", text: $raw)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
                     .focused($focus, equals: .raw)
                     .accessibilityIdentifier("correction-raw")
-                Text("Chữ cái A–Z, a–z và chữ số; tối đa 64 ký tự.")
+                Text("Nhập phím gốc như abn5 hoặc từ có dấu như càu. Tối đa 64 ký tự, không có khoảng trắng.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("Thay bằng").font(.headline)
-                TextField("Ví dụ: bạn", text: $replacement)
+                TextField("Ví dụ: bạn hoặc của", text: $replacement)
                     .textFieldStyle(.roundedBorder)
                     .focused($focus, equals: .replacement)
                     .accessibilityIdentifier("correction-replacement")
