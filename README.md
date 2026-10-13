@@ -2,7 +2,7 @@
 
 Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.4.0 thêm khởi động nền khi đăng nhập và nhập/xuất thư viện JSON có tự gộp mục trùng. Cả ô **Chuỗi gõ hoặc từ cần sửa** và **Thay bằng** đều gõ VNI/Telex trực tiếp, không cần chuyển chế độ riêng.
 
-## Tải và cài trên máy khác
+## Hướng dẫn
 
 Tải `NahtKey-0.4.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén rồi kéo **NahtKey.app** vào **Applications**. Gói dành cho **Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
