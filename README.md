@@ -4,7 +4,7 @@ Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.4.0
 
 ## Tải và cài trên máy khác
 
-Tải `NahtKey-0.4.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén rồi kéo **NahtKey.app** vào **Applications**. Gói dành cho **Apple Silicon (M1 trở lên), macOS 14 trở lên**. Repo hiện riêng tư nên cần tài khoản GitHub có quyền truy cập.
+Tải `NahtKey-0.4.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén rồi kéo **NahtKey.app** vào **Applications**. Gói dành cho **Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
 Bản phát hành ký bằng chứng chỉ nội bộ cố định, chưa có Apple Developer ID/notarization. Nếu macOS chặn lần mở đầu, sau khi kiểm tra đúng bản tải từ repo này, mở **System Settings → Privacy & Security → Open Anyway** theo [hướng dẫn của Apple](https://support.apple.com/en-us/102445). Trên máy mới, bấm **Cấp quyền Trợ năng…** trong NahtKey rồi cho phép app trong mục macOS mở ra. Chọn nguồn nhập **ABC** và tắt chế độ tiếng Việt của bộ gõ khác.
 
@@ -34,7 +34,7 @@ NahtKey mặc định bật bộ gõ và nhớ lựa chọn bật/tắt của b�
 - Chuỗi gõ hoặc từ cần sửa gồm chữ cái/chữ số Unicode, dài 1–64 ký tự, phân biệt hoa/thường. Có thể lưu `abn5 → bạn` hoặc `càu → của`; dữ liệu được chuẩn hóa NFC để tránh hai mục nhìn giống nhau nhưng khác mã Unicode.
 - Từ thay thế dài 1–128 ký tự, không có khoảng trắng hoặc ký tự điều khiển.
 - So khớp phím gốc trước; nếu không có thì xét đúng từ đã ghép dấu cho các mục có chữ Unicode. Sửa khi gặp Space, dấu câu, Tab hoặc Enter; không đoán từ gần giống.
-- 13 quy tắc ban đầu, gồm `abn5/ab5n → bạn`, `haoc85/haoc75 → hoặc`, `torng → trong`; xem [ghi nhận lỗi gõ](docs/typing-findings.md). Khi nâng cấp từ 0.1, bổ sung một lần và bảo toàn các mục người dùng đã sửa; không tự thêm lại mục đã xóa.
+- 13 quy tắc ban đầu, gồm `abn5/ab5n → bạn`, `haoc85/haoc75 → hoặc`, `torng → trong`. Bạn có thể sửa hoặc xóa chúng. Khi nâng cấp từ 0.1, bổ sung một lần và bảo toàn các mục người dùng đã sửa; không tự thêm lại mục đã xóa.
 - Dữ liệu: `~/Library/Application Support/NahtKey/corrections.json`.
 - Ghi tệp nguyên tử trước khi cập nhật giao diện. Nếu tệp không đọc được, ứng dụng báo lỗi và giữ nguyên tệp thay vì ghi đè.
 
@@ -74,6 +74,8 @@ open /Applications/NahtKey.app
 ```
 
 `build-app.sh` tạo app bundle và ký bằng identity được cấu hình. Từ bản 0.2.1, máy này dùng chứng chỉ nội bộ cố định; đã kiểm tra cập nhật sang bundle có hash khác vẫn giữ quyền Trợ năng. Đây chưa phải bản phân phối được notarize. Không mở đồng thời bản trong `dist` và bản trong `/Applications`.
+
+Bản đóng gói loại debug map chứa đường dẫn build trước khi ký, kèm giấy phép MIT. Script đóng gói từ chối executable còn đường dẫn thư mục người dùng hoặc thư mục build tạm.
 
 Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git config local của repo; chỉ ký ad-hoc nếu cả hai chưa có. Trên máy phát triển này đã thiết lập certificate **NahtKey Local Development** theo chấp thuận người dùng. Xem [hướng dẫn ký code](docs/code-signing.md).
 
@@ -115,6 +117,10 @@ Cảm ơn các tác giả đã công khai mã nguồn và kinh nghiệm xử lý
 
 NahtKey triển khai các mô-đun Swift riêng dựa trên những bài học về hành vi này; hiện không nhập trực tiếp engine, bộ từ điển hay bảng sinh tự động từ các dự án trên. `Reference/OpenKey` là bản nguồn tham khảo riêng, giữ nguyên giấy phép gốc và không được đưa vào app/Git của NahtKey. Nếu về sau sử dụng trực tiếp một phần mã hoặc dữ liệu, phần đó phải được ghi nhận cụ thể cùng thông báo bản quyền và giấy phép tương ứng. EVKey được tham khảo qua tài liệu/issue công khai; không có engine macOS đầy đủ trong nguồn công khai đã kiểm tra.
 
+## Giấy phép
+
+Mã nguồn NahtKey được phát hành theo [MIT License](LICENSE). Các dự án tham khảo giữ nguyên giấy phép của từng dự án.
+
 ## Quay lại sửa từ và giữ dấu cách trong 0.2.1
 
 - Gõ `go `, xóa Space, gõ `4` → `gõ`; `nhận `, xóa Space, gõ `4` → `nhẫn`. Telex dùng `x` thay `4`.
@@ -123,12 +129,6 @@ NahtKey triển khai các mô-đun Swift riêng dựa trên những bài học v
 - Không sửa phần chữ nằm trong mã có số hoặc dấu gạch dưới. Từ được nhận lại không chạy các alias phím gốc vì không biết lịch sử phím ban đầu.
 - Trên browser, dấu cách sau từ đang theo dõi đi cùng một giao dịch chữ; Space không bị phát lần thứ hai. Return/Tab vẫn giữ chức năng gửi/chuyển ô và hủy ngữ cảnh cũ.
 
-## Kiểm tra bản 0.1 trên máy phát triển
+## Kiểm thử
 
-Đây là lịch sử kiểm tra có phạm vi hẹp. Sau đó người dùng báo thêm lỗi đầu ô nhập và gõ nhanh; bản 0.2 xử lý các lỗi đó, không suy diễn từ kết quả 0.1 thành bảo đảm ổn định trên mọi ứng dụng.
-
-- Ngày 13/10/2026: build arm64, kiểm tra chữ ký bundle và 14 kiểm thử lõi/thư viện đều đạt.
-- Giao diện đã được kiểm tra trực tiếp: thêm, sửa, xóa mục thử; hai alias mẫu và ví dụ `tiếng Việt` hiển thị đúng trong ô thử; thư viện được giữ sau khi mở lại ứng dụng.
-- Quyền macOS đã được cấp lại cho bản cuối trong `/Applications/NahtKey.app`; event tap được xác nhận đang bật.
-- Người dùng đã xác nhận bằng bàn phím thật: `abn5 `, `ab5n `, `tie6ng1 ` cho kết quả `bạn bạn tiếng`. Đây là xác nhận trực tiếp từ người dùng; công cụ điều khiển tự động chưa tái hiện được phép thử bắt phím toàn hệ thống.
-- Chưa kiểm tra rộng trên các ứng dụng khác. Sau khi thay binary bằng bản build mới, chữ ký ad-hoc có thể đổi; nếu công tắc quyền vẫn bật nhưng app báo chưa có quyền, bỏ mục NahtKey cũ rồi thêm lại đúng `/Applications/NahtKey.app`.
+Chạy `swift test` để kiểm tra lõi ghép dấu, sửa từ, chồng phím và lưu thư viện. Xem [các trường hợp hồi quy](docs/typing-findings.md) để thử bằng bàn phím thật. Kiểm thử tự động không thay thế việc kiểm tra tương thích trong ứng dụng bạn sử dụng.

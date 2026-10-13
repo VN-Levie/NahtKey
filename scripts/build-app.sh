@@ -7,6 +7,10 @@ binary_dir="$(swift build -c release --show-bin-path)"
 bundle="$task_root/dist/NahtKey.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$binary_dir/NahtKey" "$bundle/Contents/MacOS/NahtKey"
+# SwiftPM release builds retain a debug map with absolute source/object paths.
+# Strip only debug symbols from the shipped copy, then sign the final bundle.
+xcrun strip -S "$bundle/Contents/MacOS/NahtKey"
+cp "$task_root/LICENSE" "$bundle/Contents/Resources/LICENSE"
 cp "$task_root/assets/NahtKeyIcon.png" "$bundle/Contents/Resources/NahtKeyIcon.png"
 cp "$task_root/assets/NahtKeyMenuBar.png" "$bundle/Contents/Resources/NahtKeyMenuBar.png"
 # Finder's large preview needs the modern icon stack, not only a legacy ICNS.
@@ -34,7 +38,7 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>NahtKey</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.4.0</string>
-<key>CFBundleVersion</key><string>15</string>
+<key>CFBundleVersion</key><string>16</string>
 <key>LSUIElement</key><true/>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
