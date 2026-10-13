@@ -94,3 +94,5 @@ Người dùng xác nhận bản 0.3.3 vẫn lỗi: bôi chọn không thay ch�
 0.3.4 bỏ hoàn toàn Shift+Left tổng hợp; xóa đúng suffix bằng Backspace rồi chèn Unicode. Không chèn ký tự tạm hoặc cộng thêm một lần xóa cho ký tự giả định. Nhánh xóa vùng gợi ý chỉ dùng khi xác minh được vùng chọn hiện hữu như mô tả trên. Kiểm thử native và mô hình vẫn cần bổ sung bằng xác nhận bàn phím thật, đặc biệt từ đầu ô trống và gõ nhanh.
 
 Menu được gắn trực tiếp bằng `NSStatusItem.menu`, bỏ `NSMenu.popUp` tại tọa độ tự tính. AppKit chịu trách nhiệm đặt menu trong màn hình; không giữ delay hay nhận nhấn đúp.
+
+Sau khi cài 0.3.4, người dùng xác nhận menu đã ổn và gõ được `chưa`, `cưa`, `mưa`; riêng `ưu` vẫn báo lỗi và xác nhận thường gõ `uu7`. Core trả đúng `deleteCount: 2, insertText: "ưu"`; `u7u` và `u7u7` cũng cho `ưu`. Người dùng mô tả nhìn thấy xóa rồi thêm chữ, nhưng chưa xác định kết quả cuối sai hay chỉ bị nháy. Không coi phần này là đã xử lý xong. AXSelectedText không có hỗ trợ ghi thống nhất giữa app/ô nhập, nên chưa áp dụng ghi AX hoặc thay toàn bộ AXValue làm giải pháp chung.
