@@ -49,13 +49,17 @@ final class VNIEngineTests: XCTestCase {
     }
 
     func testExactRawAliasesAtBoundaryRegardlessOfRenderedText() {
-        let engine = VNIEngine(corrections: ["abn5": "bạn", "ab5n": "bạn"])
-        for alias in ["abn5", "ab5n"] {
+        let engine = VNIEngine(corrections: ["abn5": "bạn", "ab5n": "bạn", "ban5": "bạn thân"])
+        for (alias, expected) in [("abn5", "bạn"), ("ab5n", "bạn"), ("ban5", "bạn thân")] {
             var visible = type(alias, into: engine)
-            XCTAssertNotEqual(visible, alias)
-            XCTAssertNotEqual(visible, "bạn", "Corrections wait until a boundary")
+            if alias == "ban5" {
+                XCTAssertEqual(visible, "bạn")
+            } else {
+                XCTAssertEqual(visible, alias, "Impossible syllables remain raw until an explicit alias matches")
+            }
+            XCTAssertNotEqual(visible, expected, "Personal corrections wait until a boundary")
             apply(engine.finish(), to: &visible)
-            XCTAssertEqual(visible, "bạn")
+            XCTAssertEqual(visible, expected)
             XCTAssertEqual(engine.raw, "")
             XCTAssertEqual(engine.rendered, "")
         }

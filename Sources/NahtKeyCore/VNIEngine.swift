@@ -20,7 +20,8 @@ public struct TextEdit: Equatable {
 }
 
 /// A platform-independent VNI and Telex composer. The host owns word boundaries,
-/// cursor changes, and applying edits. Personal rules match the exact input keys.
+/// cursor changes, and applying edits. Personal rules prefer exact input keys,
+/// then an explicit Unicode-word alias for the composed candidate.
 public final class VNIEngine {
     public var corrections: [String: String]
     public var inputMethod: InputMethod {
@@ -37,6 +38,7 @@ public final class VNIEngine {
     private var characters: [Character] = []
     private var previousKey: Character?
     private var capturedKeyCount = 0
+    private var vniIsLiteral = false
 
     public init(corrections: [String: String] = [:], inputMethod: InputMethod = .vni) {
         self.corrections = corrections
@@ -60,24 +62,47 @@ public final class VNIEngine {
         capturedKeyCount += 1
         // Apply just the new key. Replaying every raw key here was quadratic and
         // needlessly repeated tone scans inside the system's keyboard callback.
-        Self.compose(character, previousKey: previousKey, method: inputMethod, into: &characters)
+        if inputMethod == .vni, vniIsLiteral {
+            characters.append(character)
+        } else {
+            let appliedModifier = Self.compose(character, previousKey: previousKey, method: inputMethod, into: &characters)
+            if inputMethod == .vni, !Self.isPossibleVietnamesePrefix(characters) {
+                // A repeated modifier intentionally escapes a literal digit
+                // (a11 -> a1). Keep that result; otherwise an impossible prefix
+                // restores the user's exact original keys, including modifiers.
+                let escapedDigit = appliedModifier && character.isNumber && characters.last == character
+                if !escapedDigit { characters = Array(raw) }
+                vniIsLiteral = true
+            }
+        }
         previousKey = character
         rendered = String(characters)
         return Self.edit(from: previous, to: rendered)
     }
 
-    /// Commit a token, applying an exact raw-key correction if one exists.
+    /// Commit once: exact raw keys have priority over a Unicode-word alias.
     /// The delimiter itself is intentionally absent from the returned edit.
     public func finish() -> TextEdit {
         let result: TextEdit
-        if mayCorrectRaw, !passesThroughLongToken, !raw.isEmpty,
-           let replacement = corrections[raw] {
+        if let replacement = personalReplacement() {
             result = Self.edit(from: rendered, to: replacement)
         } else {
             result = TextEdit(deleteCount: 0, insertText: "")
         }
         reset()
         return result
+    }
+
+    private func personalReplacement() -> String? {
+        guard mayCorrectRaw, !passesThroughLongToken, !raw.isEmpty else { return nil }
+        if let exact = corrections[raw] { return exact }
+        let candidate = rendered.precomposedStringWithCanonicalMapping
+        // ASCII entries remain raw-key rules. For example, ban50 -> ban must
+        // not accidentally trigger a raw "ban" alias after 0 clears the tone.
+        guard candidate.contains(where: { $0.isLetter && !$0.isASCII }) else { return nil }
+        // Swift String equality/hashing is canonically equivalent: this lookup
+        // also accepts NFD dictionary keys without scanning or copying the map.
+        return corrections[candidate]
     }
 
     /// Delete one visible grapheme, rather than undoing a hidden typing modifier.
@@ -93,12 +118,13 @@ public final class VNIEngine {
         raw = rendered
         capturedKeyCount = characters.count
         previousKey = nil
+        vniIsLiteral = inputMethod == .vni && !Self.isPossibleVietnamesePrefix(characters)
         return TextEdit(deleteCount: 1, insertText: "")
     }
 
     /// Resume a known visible word after a delimiter was removed or the host
     /// verified the caret position. Unknown source keystrokes must never qualify
-    /// for an exact raw alias. Reject partial, non-word, and overlong input.
+    /// for either personal-alias path. Reject partial, non-word, and overlong input.
     public func resume(_ visibleWord: String) {
         reset()
         mayCorrectRaw = false
@@ -109,6 +135,7 @@ public final class VNIEngine {
         rendered = normalized
         characters = Array(normalized)
         capturedKeyCount = characters.count
+        vniIsLiteral = inputMethod == .vni && !Self.isPossibleVietnamesePrefix(characters)
     }
 
     public func reset() {
@@ -119,6 +146,7 @@ public final class VNIEngine {
         characters.removeAll(keepingCapacity: true)
         previousKey = nil
         capturedKeyCount = 0
+        vniIsLiteral = false
     }
 
     private static func edit(from old: String, to new: String) -> TextEdit {
@@ -169,19 +197,34 @@ public final class VNIEngine {
 
     private static let vowelCharacters = Dictionary(uniqueKeysWithValues: vowels.map { ($0.value, $0.key) })
 
-    private static func compose(_ key: Character, previousKey: Character?, method: InputMethod, into text: inout [Character]) {
+    private static func isPossibleVietnamesePrefix(_ text: [Character]) -> Bool {
+        var bases: [Character] = []
+        bases.reserveCapacity(text.count)
+        for character in text {
+            if let vowel = vowels[character] {
+                bases.append(vowel.base)
+            } else {
+                bases.append(contentsOf: String(character).lowercased())
+            }
+        }
+        return VietnameseSyllablePrefix.accepts(bases)
+    }
+
+    @discardableResult
+    private static func compose(_ key: Character, previousKey: Character?, method: InputMethod, into text: inout [Character]) -> Bool {
         switch method {
         case .vni:
             if let digit = key.wholeNumberValue, key.isASCII,
-               apply(digit: digit, previousKey: previousKey, to: &text) { return }
+               apply(digit: digit, previousKey: previousKey, to: &text) { return true }
         case .telex:
-            if applyTelex(key, previousKey: previousKey, to: &text) { return }
+            if applyTelex(key, previousKey: previousKey, to: &text) { return true }
         }
         text.append(key)
         if key.isLetter {
             harmonizeHorns(in: &text)
             relocateTone(in: &text)
         }
+        return false
     }
 
     /// Only the current letter suffix may participate in a VNI operation. Literal
