@@ -24,6 +24,9 @@ final class KeyboardController: ObservableObject {
     private let eventSource = KeyboardController.makeEventSource()
     private var commitSpaceAsText = false
     private var consumedKeys = Set<Int64>()
+    // Native key-downs already sent to the target but not yet followed by up.
+    // HID alone may have advanced ahead of events waiting in this tap's queue.
+    private var passedKeysDown = Set<CGKeyCode>()
     private var focusObserver: AXObserver?
     private var focusApplication: AXUIElement?
     private var focusedElement: AXUIElement?
@@ -173,6 +176,7 @@ final class KeyboardController: ObservableObject {
         }
         if let tap {
             engine.reset()
+            passedKeysDown.removeAll()
             CGEvent.tapEnable(tap: tap, enable: true)
             isEnabled = activate
             errorMessage = nil
@@ -220,6 +224,7 @@ final class KeyboardController: ObservableObject {
         engine.reset()
         isEnabled = false
         consumedKeys.removeAll()
+        passedKeysDown.removeAll()
         errorMessage = nil
     }
 
@@ -227,6 +232,7 @@ final class KeyboardController: ObservableObject {
         let pass = Unmanaged.passUnretained(event)
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             engine.reset()
+            passedKeysDown.removeAll()
             toggleGesture.reset()
             if hasPermission, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return pass
@@ -234,6 +240,7 @@ final class KeyboardController: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.eventMarker else { return pass }
         if IsSecureEventInputEnabled() {
             engine.reset()
+            passedKeysDown.removeAll()
             toggleGesture.reset()
             return pass
         }
@@ -251,6 +258,7 @@ final class KeyboardController: ObservableObject {
         guard isEnabled else { return pass }
         let key = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp {
+            passedKeysDown.remove(CGKeyCode(truncatingIfNeeded: key))
             return consumedKeys.remove(key) != nil ? nil : pass
         }
         // Refresh process/focus before consulting secureFocus, which belongs to
@@ -284,7 +292,7 @@ final class KeyboardController: ObservableObject {
             let edit = engine.backspace()
             if edit.deleteCount == 1 && edit.insertText.isEmpty { return pass }
             if edit.deleteCount == 0 && edit.insertText.isEmpty { return pass }
-            post(edit, proxy: proxy)
+            guard post(edit, proxy: proxy) else { engine.reset(); return pass }
             consumedKeys.insert(key)
             return nil
         }
@@ -296,11 +304,12 @@ final class KeyboardController: ObservableObject {
             if key == 49 && hadWord && (commitSpaceAsText || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
                 // Own the completed word AND its space as one text transaction.
                 // Do not mix synthetic word replacement with a physical delimiter.
-                post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
+                guard post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
+                else { engine.reset(); return pass }
                 consumedKeys.insert(key)
                 return nil
             }
-            post(edit, proxy: proxy, previousWord: previousWord)
+            if !post(edit, proxy: proxy, previousWord: previousWord) { engine.reset() }
             if key != 49 { engine.reset() } // Return/Tab may submit or move to another field.
             return pass
         }
@@ -319,14 +328,17 @@ final class KeyboardController: ObservableObject {
             resumeWordIfNeeded(for: character)
             let previousWord = engine.rendered
             let edit = engine.process(character)
-            if edit.deleteCount == 0 && edit.insertText == text { return pass }
-            post(edit, proxy: proxy, previousWord: previousWord)
+            if edit.deleteCount == 0 && edit.insertText == text {
+                passedKeysDown.insert(CGKeyCode(truncatingIfNeeded: key))
+                return pass
+            }
+            guard post(edit, proxy: proxy, previousWord: previousWord) else { engine.reset(); return pass }
             consumedKeys.insert(key)
             return nil
         }
         if ascii >= 32 && ascii < 127 {
             let previousWord = engine.rendered
-            post(engine.finish(boundary: character), proxy: proxy, previousWord: previousWord)
+            if !post(engine.finish(boundary: character), proxy: proxy, previousWord: previousWord) { engine.reset() }
         } else {
             engine.reset()
         }
@@ -343,38 +355,19 @@ final class KeyboardController: ObservableObject {
         engine.resume(word)
     }
 
-    private func post(_ edit: TextEdit, proxy: CGEventTapProxy, previousWord: String = "") {
-        guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return }
+    private func post(_ edit: TextEdit, proxy: CGEventTapProxy, previousWord: String = "") -> Bool {
+        guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return true }
         let clearCompletion = commitSpaceAsText && edit.deleteCount > 0 && !edit.insertText.isEmpty
             && !secureFocus && focusedElement.map {
                 CaretWordReader.hasInlineCompletion(after: previousWord, in: $0)
             } == true
-        for operation in ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion) {
-            switch operation {
-            case .backspace:
-                postKey(51, down: true, proxy: proxy)
-                postKey(51, down: false, proxy: proxy)
-            case .text(let text):
-                postText(text, proxy: proxy)
-            }
-        }
-    }
-
-    private func postText(_ text: String, proxy: CGEventTapProxy) {
-        let units = Array(text.utf16)
-        for down in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: down) else { continue }
-            event.flags = .maskNonCoalesced
-            event.setIntegerValueField(.eventSourceUserData, value: Self.eventMarker)
-            event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
-            event.tapPostEvent(proxy)
-        }
-    }
-
-    private func postKey(_ key: CGKeyCode, down: Bool, flags: CGEventFlags = [], proxy: CGEventTapProxy) {
-        guard let event = CGEvent(keyboardEventSource: eventSource, virtualKey: key, keyDown: down) else { return }
-        event.flags = flags.union(.maskNonCoalesced)
-        event.setIntegerValueField(.eventSourceUserData, value: Self.eventMarker)
-        event.tapPostEvent(proxy)
+        let operations = ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion)
+        guard let events = KeyboardEventBatch.make(operations, source: eventSource, marker: Self.eventMarker,
+                                                   isPhysicallyDown: { key in
+            self.passedKeysDown.contains(key) || CGEventSource.keyState(.hidSystemState, key: key)
+        })
+        else { return false }
+        for event in events { event.tapPostEvent(proxy) }
+        return true
     }
 }

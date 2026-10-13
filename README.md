@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.4 thay chữ bằng Backspace và Unicode, bỏ bôi chọn tổng hợp; menu bar do macOS tự mở và đặt vị trí. Giữ icon Finder đã sửa, Ctrl+Shift toàn hệ thống và gõ VNI/Telex trực tiếp trong ô Thay bằng.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.5 sửa mất chữ khi giữ `a` rồi nhấn phím dấu, như `mua7`, `chua7`; menu bar mở ngay và do macOS tự đặt vị trí. Giữ icon Finder đã sửa, Ctrl+Shift toàn hệ thống và gõ VNI/Telex trực tiếp trong ô Thay bằng.
 
 ## Dùng bản đầu
 
@@ -67,6 +67,8 @@ Build ưu tiên `NAHTKEY_SIGN_IDENTITY`, rồi identity được lưu trong Git 
 `install-local.sh` cập nhật timestamp của app bundle, đăng ký lại riêng NahtKey với LaunchServices và nhập lại metadata Spotlight. Cách này tránh giữ icon/phiên bản cũ khi cập nhật bằng cách chép đè; không xóa cache hệ thống hoặc khởi động lại Finder/Dock.
 
 Icon ứng dụng được biên dịch từ `assets/NahtKey.icon` bằng `actool`, tạo `Assets.car`, bản dự phòng `.icns` và các khóa Info.plist tương ứng. Lớp `Assets/Logo.png` là bản sao nguyên vẹn của logo gốc `NahtKeyIcon.png`, đặt phủ kín khuôn icon của hệ thống để preview lớn trong Finder không lồng thêm nền trắng. Giữ hai ảnh này đồng bộ khi đổi logo. Tài liệu `.icon` có thể mở bằng [Icon Composer](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer).
+
+Để kiểm tra đường bàn phím thật: chạy `./scripts/build-input-probe.sh`, mở `.build/InputProbe.app`, bật NahtKey rồi gõ vào ô thử. Log chỉ nằm trong bộ nhớ của cửa sổ này, không theo dõi ứng dụng khác. Trường hợp hồi quy: gõ `chu`, giữ `a`, nhấn `7` trước khi thả `a` — phải ra `chưa`, có sự kiện Unicode `ưa` trước key-up của `a`. Tự động hóa gửi phím thẳng tới app có thể bỏ qua event tap, nên không thay thế lượt thử bàn phím thật này.
 
 - `Sources/NahtKeyCore`: lõi VNI và sửa lỗi, độc lập với giao diện/macOS.
 - `Sources/NahtKeyApp`: SwiftUI, lưu thư viện, lớp event tap macOS.

@@ -96,3 +96,13 @@ Người dùng xác nhận bản 0.3.3 vẫn lỗi: bôi chọn không thay ch�
 Menu được gắn trực tiếp bằng `NSStatusItem.menu`, bỏ `NSMenu.popUp` tại tọa độ tự tính. AppKit chịu trách nhiệm đặt menu trong màn hình; không giữ delay hay nhận nhấn đúp.
 
 Sau khi cài 0.3.4, người dùng xác nhận menu đã ổn và gõ được `chưa`, `cưa`, `mưa`; riêng `ưu` vẫn báo lỗi và xác nhận thường gõ `uu7`. Core trả đúng `deleteCount: 2, insertText: "ưu"`; `u7u` và `u7u7` cũng cho `ưu`. Người dùng mô tả nhìn thấy xóa rồi thêm chữ, nhưng chưa xác định kết quả cuối sai hay chỉ bị nháy. Không coi phần này là đã xử lý xong. AXSelectedText không có hỗ trợ ghi thống nhất giữa app/ô nhập, nên chưa áp dụng ghi AX hoặc thay toàn bộ AXValue làm giải pháp chung.
+
+## Giữ phím a khi nhấn dấu — 0.3.5
+
+Người dùng làm rõ: `uu7 → ưu` bình thường, không nháy. Lỗi hay xảy ra với `mưa/chưa/cưa` khi nhấn `a` trước và `7` sát sau, lúc `a` chưa nhả; thứ tự `7` trước `a` ổn. Do đó nhận định trước đó rằng `ưu` đang lỗi không còn phù hợp.
+
+Tái hiện bằng bàn phím thật trong Input Probe (NSTextView riêng, chỉ ghi sự kiện của ô thử): key-down A đã tới target và nội dung là `chua`; hai Backspace có marker NahtKey lần lượt đưa nội dung về `chu`, `ch`; sự kiện Unicode `ưa` không tới, sau đó mới thấy key-up A. Điều này loại khả năng A chưa tới editor trước khi xóa trong lượt tái hiện. Cả lõi lẫn số lần xóa đều đúng. Unicode cũ luôn dùng virtual key 0, trùng phím ANSI A vật lý đang được giữ.
+
+0.3.5 chọn một mã phím chữ ANSI đang rảnh cho cả cặp down/up và mọi chunk của lần chèn Unicode. Ưu tiên giữ A như trước khi A rảnh, dùng B/C… nếu đang giữ A; không dùng phím chức năng hoặc mã reserved. Kết hợp các key-down đã cho qua nhưng chưa nhận key-up với trạng thái HID hiện tại. Chuẩn bị đủ toàn bộ event trước lần xóa đầu tiên; nếu không chuẩn bị được thì reset phiên và cho phím gốc đi qua, không xóa dở rồi bỏ phần chèn.
+
+Kiểm chứng lại cùng ô thử: sau `chua → chu → ch`, Unicode `ưa` có marker NahtKey đến qua key 11 (ANSI B), nội dung trở thành `chưa`, rồi mới tới key-up A. Người dùng xác nhận **“Đã thử, chữ ra đúng”**; ô thử chứa `mưa, chưa, chưa, ưu, mưa, cưa`. Tổng 87 kiểm thử đạt. Đây là bằng chứng khắc phục lỗi giữ A đã tái hiện, không phải bảo đảm mọi chord hoặc mọi editor đều giống NSTextView. Không sửa quy tắc `ưu`, không thêm sleep hay thay đổi clipboard/AXValue.
