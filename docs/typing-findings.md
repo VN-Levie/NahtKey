@@ -8,7 +8,7 @@
 
 Không dùng quy tắc cá nhân để che các lỗi trên.
 
-Phần xuất phím hiện gửi một giao dịch đồng bộ trong callback. Ở trình duyệt, ký tự tạm chốt lựa chọn gợi ý, sau đó chọn phần đuôi cũ cùng ký tự tạm và thay trực tiếp; tránh xóa hết chữ đầu tiên rồi để frontend xử lý trạng thái rỗng. Ký tự tạm phải biến mất trong cùng giao dịch. Phần khác dùng đường Backspace thông thường. Bật cho các browser nhận diện được và Codex/ChatGPT desktop, chưa áp dụng toàn cục.
+Phần xuất phím gửi các sự kiện liên tiếp trong callback. Bản 0.2 từng chèn ký tự tạm rồi chọn phần đuôi cũ cùng ký tự đó trên trình duyệt; bản 0.3.3 bỏ giả định này vì editor có thể không giữ ký tự tạm (xem bên dưới). Đường chọn/thay chữ áp dụng cho các browser nhận diện được và Codex/ChatGPT desktop; phần khác dùng Backspace thông thường.
 
 Nguồn phím tổng hợp được cấu hình rõ để không suppress phím thật. Chuỗi Unicode được chia theo ranh giới grapheme; quan sát focus chỉ lấy danh tính điều khiển và vai trò, không đọc nội dung tài liệu.
 
@@ -74,3 +74,15 @@ Người dùng xác nhận Ctrl+Shift, hai trạng thái icon và nhấn đúp m
 Ô Thay bằng trước đây đi qua cơ chế bỏ qua toàn bộ app nên không ghép dấu. Nay dùng NSTextField với bộ xử lý cục bộ, sửa range UTF-16 theo grapheme, không gửi phím hệ thống. Đã thử bằng sự kiện phím native `giua74 → giữa`, và Select All + `a11 → a1`. Phép thử không lưu mục giả vào từ điển. Tổng bộ test tại thời điểm này là 85 ca.
 
 Icon app không thiếu: file ICNS hợp lệ và NSWorkspace trả logo đúng. Nhưng metadata Spotlight từng còn ghi 0.1.0 trong khi app đã 0.2.4. Đã làm mới riêng app và bổ sung bước touch/register/mdimport vào quá trình cài, không xóa cache toàn máy.
+
+## Mất chữ trước ư và menu phản hồi chậm — 0.3.3
+
+Người dùng báo `chu7a → cưa`, `cu7a → ưa`, gặp ở nhiều nơi. Lõi vẫn trả đúng edit xóa một `u`, chèn `ư`; không tái hiện được xung đột với quy tắc `ưu`. Adapter cũ chèn U+202F rồi chọn lùi `deleteCount + 1`. Khi mô phỏng editor bỏ U+202F trước khi chọn, chạy trên NSTextView cho đúng hai kết quả sai trên; với cả `chua7`/`cua7` cũng mất một phụ âm. Đây là tái hiện cơ chế lỗi có kiểm soát, chưa phải quan sát editor của người dùng đã loại U+202F.
+
+Đường selection nay chọn đúng `deleteCount` rồi chèn suffix mới, không thêm ký tự tạm. Đầu input `d → đ` không đi qua trạng thái nội dung rỗng. Khi có phần gợi ý đang bôi chọn trong ô một dòng, chỉ xóa phần chọn nếu Accessibility xác nhận vùng chọn không rỗng nằm ngay sau toàn bộ từ đang được engine theo dõi. Mọi thao tác chọn bằng chuột, điều hướng/phím tắt vẫn reset engine; không suy đoán có autocomplete ở toàn bộ app. Đọc ngữ cảnh có giới hạn, loại trường bảo vệ và không lưu/log nội dung.
+
+Tham khảo cách tách chiến lược trong [VietTelex TerminalTap](https://github.com/ptrinh/viettelex/blob/main/App/Sources/TerminalTap.swift), [GoNhanh RustBridge](https://github.com/khaphanspace/gonhanh.org/blob/main/platforms/macos/RustBridge.swift) và OpenKey: selection chọn số chữ cần thay; sentinel là cơ chế khác, không mặc định ghép với selection. NahtKey dùng implementation Swift riêng.
+
+Hồi quy gồm hai thứ tự dấu của `chưa/cưa`, `thư`, `ưu`, `đã`, Telex, từ ở đầu ô và sau tiền tố; AppKit thực hiện selection thật trên NSTextView, kèm mô phỏng loại ký tự vô hình. Kiểm tra 100 lượt `chưa cưa ưu bạn bạn ` liên tiếp giữ đủ chữ và Space. Xác nhận bằng bàn phím thật sau cài vẫn cần thiết.
+
+Theo phản hồi người dùng, bỏ nhận nhấn đúp trên menu bar để không chờ `doubleClickInterval`. Nhấn trái/phải mở menu ngay; mở cửa sổ bằng mục **Mở NahtKey…**. Ctrl+Shift và hai trạng thái icon giữ nguyên.

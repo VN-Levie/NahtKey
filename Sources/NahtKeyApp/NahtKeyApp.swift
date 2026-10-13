@@ -98,7 +98,7 @@ private struct MainView: View {
             HStack {
                 Text("\(keyboard.inputMethod.displayName) · Unicode").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Text("Ctrl + Shift: bật/tắt · Bấm đúp biểu tượng menu để mở.")
+                Text("Ctrl + Shift: bật/tắt · Bấm biểu tượng để mở menu.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.bottom, 12)
         }

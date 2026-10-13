@@ -2,55 +2,6 @@ import AppKit
 import Combine
 import NahtKeyCore
 
-/// Keeps the first click from opening a tracking menu before a second click arrives.
-@MainActor
-final class StatusItemClickDispatcher {
-    typealias Action = @MainActor () -> Void
-    typealias Cancellation = @MainActor () -> Void
-    typealias Scheduler = (_ delay: TimeInterval, _ action: @escaping Action) -> Cancellation
-
-    private let delay: TimeInterval
-    private let schedule: Scheduler
-    private let openMenu: Action
-    private let openWindow: Action
-    private var cancellation: Cancellation?
-    private var generation = 0
-
-    init(delay: TimeInterval, schedule: Scheduler? = nil,
-         openMenu: @escaping Action, openWindow: @escaping Action) {
-        self.delay = delay
-        self.schedule = schedule ?? { delay, action in
-            let work = DispatchWorkItem { MainActor.assumeIsolated { action() } }
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-            return { work.cancel() }
-        }
-        self.openMenu = openMenu
-        self.openWindow = openWindow
-    }
-
-    func handle(clickCount: Int, rightClick: Bool = false) {
-        cancelPending()
-        if rightClick {
-            openMenu()
-        } else if clickCount >= 2 {
-            openWindow()
-        } else {
-            let expectedGeneration = generation
-            cancellation = schedule(delay) { [weak self] in
-                guard let self, self.generation == expectedGeneration else { return }
-                self.cancellation = nil
-                self.openMenu()
-            }
-        }
-    }
-
-    func cancelPending() {
-        generation += 1
-        cancellation?()
-        cancellation = nil
-    }
-}
-
 /// App-owned rather than view-owned, so hiding or redrawing a window never creates
 /// a second status item and never removes the user's way to reopen NahtKey.
 @MainActor
@@ -67,11 +18,6 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
     private let disabledIcon: NSImage?
     private var observation: AnyCancellable?
     private var removed = false
-    private lazy var clicks = StatusItemClickDispatcher(
-        delay: NSEvent.doubleClickInterval,
-        openMenu: { [weak self] in self?.showMenu() },
-        openWindow: { [weak self] in self?.openWindow() }
-    )
 
     init(keyboard: KeyboardController, openWindow: @escaping () -> Void, quit: @escaping () -> Void) {
         self.keyboard = keyboard
@@ -96,12 +42,9 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
-    func cancelPendingClick() { clicks.cancelPending() }
-
     func shutdown() {
         guard !removed else { return }
         removed = true
-        clicks.cancelPending()
         observation?.cancel()
         observation = nil
         menu.cancelTracking()
@@ -114,8 +57,7 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func clicked(_ sender: NSStatusBarButton) {
-        let event = NSApp.currentEvent
-        clicks.handle(clickCount: event?.clickCount ?? 1, rightClick: event?.type == .rightMouseUp)
+        showMenu()
     }
 
     @objc private func toggleInput(_ sender: NSMenuItem) { keyboard.toggle() }
@@ -164,14 +106,13 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         statusItem.button?.appearsDisabled = false
         let status = "NahtKey, \(method.displayName), \(enabled ? "đang bật" : "đang tắt")"
         statusItem.button?.setAccessibilityLabel(status)
-        statusItem.button?.toolTip = "\(status)\nCtrl + Shift: bật/tắt. Bấm đúp để mở NahtKey."
+        statusItem.button?.toolTip = "\(status)\nCtrl + Shift: bật/tắt. Bấm để mở menu."
     }
 
     private func showMenu() {
         guard !removed, let button = statusItem.button else { return }
         button.highlight(true)
         defer { button.highlight(false) }
-        // No permanent statusItem.menu: AppKit must deliver both click events first.
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
     }
 

@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.2 sửa icon xem trước trong Finder; giữ Ctrl+Shift toàn hệ thống, nhấn đúp icon để mở cửa sổ và gõ VNI/Telex trực tiếp trong ô Thay bằng.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.3 bỏ ký tự tạm gây chọn dư chữ khi ghép dấu; menu bar mở ngay khi nhấn một lần. Giữ icon Finder đã sửa, Ctrl+Shift toàn hệ thống và gõ VNI/Telex trực tiếp trong ô Thay bằng.
 
 ## Dùng bản đầu
 
@@ -11,7 +11,7 @@ Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.2
 3. Chọn nguồn nhập **ABC**, tắt chế độ tiếng Việt của bộ gõ khác, chọn **VNI** hoặc **Telex** rồi bật **Bật bộ gõ** trong NahtKey.
 4. Gõ ở ứng dụng cần dùng. `ban5` → `bạn`. `abn5` hoặc `ab5n` + Space → `bạn `.
 5. Nhấn và nhả riêng **Ctrl+Shift** để bật/tắt bộ gõ (không phải Cmd). Tổ hợp có phím khác như Ctrl+Shift+C vẫn được giữ nguyên. Shortcut hoạt động cả khi bộ gõ đang tắt, nếu NahtKey có quyền Trợ năng.
-6. Icon NahtKey bình thường khi bật, có nét gạch mảnh phía thân N khi tắt. Nhấn đúp icon để mở cửa sổ; nhấn một lần mở menu sau khoảng nhận nhấn đúp của macOS; chuột phải mở menu ngay.
+6. Icon NahtKey bình thường khi bật, có nét gạch mảnh phía thân N khi tắt. Nhấn một lần hoặc chuột phải để mở menu ngay; chọn **Mở NahtKey…** để mở cửa sổ.
 7. Bấm **X** hoặc **Cmd+Q** để ẩn cửa sổ và icon Dock, vẫn giữ bộ gõ chạy. Chọn **Thoát hoàn toàn NahtKey** trong menu bar để thoát thật.
 
 NahtKey mặc định bật bộ gõ và nhớ lựa chọn bật/tắt của bạn khi mở lại. Nếu chưa có quyền, bộ gõ chờ quyền; khi quyền được cấp sẽ tự bật nếu trạng thái mong muốn là bật. Bảng từ và ô thử VNI hoạt động trước khi cấp quyền. Ô thử dùng cùng lõi xử lý, nhưng không thay thế việc kiểm tra bắt phím trong ứng dụng khác.

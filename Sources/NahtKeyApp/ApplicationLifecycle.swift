@@ -62,7 +62,6 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     }
 
     func showMainWindow(createWindow: (() -> Void)? = nil) {
-        statusItemController?.cancelPendingClick()
         NSApp.setActivationPolicy(.regular)
         NSApp.unhide(nil)
         if let mainWindow {
