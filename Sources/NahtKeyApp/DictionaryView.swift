@@ -1,7 +1,9 @@
 import SwiftUI
+import NahtKeyCore
 
 struct DictionaryView: View {
     @ObservedObject var store: DictionaryStore
+    var inputMethod: InputMethod = .vni
     @State private var query = ""
     @State private var selection: UUID?
     @State private var editor: EditorTarget?
@@ -135,7 +137,7 @@ struct DictionaryView: View {
         }
         .padding(24)
         .sheet(item: $editor) { target in
-            CorrectionEditor(store: store, entry: target.entry)
+            CorrectionEditor(store: store, entry: target.entry, inputMethod: inputMethod)
         }
         .confirmationDialog("Xóa quy tắc này?", isPresented: Binding(
             get: { deletion != nil },
@@ -168,17 +170,19 @@ struct DictionaryView: View {
 private struct CorrectionEditor: View {
     @ObservedObject var store: DictionaryStore
     let entry: CorrectionEntry?
+    let inputMethod: InputMethod
     @Environment(\.dismiss) private var dismiss
     @State private var raw: String
     @State private var replacement: String
     @State private var validationMessage: String?
     @FocusState private var focus: Field?
 
-    private enum Field { case raw, replacement }
+    private enum Field { case raw }
 
-    init(store: DictionaryStore, entry: CorrectionEntry?) {
+    init(store: DictionaryStore, entry: CorrectionEntry?, inputMethod: InputMethod) {
         self.store = store
         self.entry = entry
+        self.inputMethod = inputMethod
         _raw = State(initialValue: entry?.raw ?? "")
         _replacement = State(initialValue: entry?.replacement ?? "")
     }
@@ -202,11 +206,10 @@ private struct CorrectionEditor: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("Thay bằng").font(.headline)
-                TextField("Ví dụ: bạn hoặc của", text: $replacement)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($focus, equals: .replacement)
-                    .accessibilityIdentifier("correction-replacement")
-                Text("Một từ, không có khoảng trắng.")
+                VietnameseTextField(text: $replacement, inputMethod: inputMethod,
+                                    placeholder: "Ví dụ: bạn hoặc của", onSubmit: save)
+                    .frame(height: 22)
+                Text("Gõ \(inputMethod.displayName) tại đây. Một từ, không có khoảng trắng.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

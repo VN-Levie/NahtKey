@@ -11,7 +11,7 @@ struct NahtKeyApp: App {
     var body: some Scene {
         Window("NahtKey", id: "main") {
             MainView(dictionary: dictionary, keyboard: keyboard)
-                .background(MainWindowRegistration(lifecycle: lifecycle))
+                .background(MainWindowRegistration(lifecycle: lifecycle, keyboard: keyboard))
                 .onReceive(dictionary.$entries) { entries in
                     keyboard.updateCorrections(Dictionary(uniqueKeysWithValues: entries.map { ($0.raw, $0.replacement) }))
                 }
@@ -24,54 +24,6 @@ struct NahtKeyApp: App {
                     .keyboardShortcut("q", modifiers: .command)
             }
         }
-        MenuBarExtra {
-            TrayMenu(keyboard: keyboard, lifecycle: lifecycle)
-        } label: {
-            MenuBarIcon(isEnabled: keyboard.isEnabled)
-                .accessibilityLabel("NahtKey, \(keyboard.inputMethod.displayName), \(keyboard.isEnabled ? "đang bật" : "đang tắt")")
-        }
-    }
-}
-
-private struct MenuBarIcon: View {
-    let isEnabled: Bool
-    private static let templateImage: NSImage? = {
-        guard let url = Bundle.main.url(forResource: "NahtKeyMenuBar", withExtension: "png"),
-              let image = NSImage(contentsOf: url) else { return nil }
-        image.isTemplate = true
-        image.size = NSSize(width: 18, height: 18)
-        return image
-    }()
-
-    var body: some View {
-        Group {
-            if let image = Self.templateImage {
-                Image(nsImage: image).renderingMode(.template)
-            } else {
-                Image(systemName: "keyboard")
-            }
-        }
-        .opacity(isEnabled ? 1 : 0.55)
-    }
-}
-
-private struct TrayMenu: View {
-    @ObservedObject var keyboard: KeyboardController
-    let lifecycle: ApplicationLifecycle
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Toggle("Bật bộ gõ", isOn: Binding(get: { keyboard.isEnabled }, set: keyboard.setEnabled))
-        Picker("Kiểu gõ", selection: Binding(get: { keyboard.inputMethod }, set: keyboard.setInputMethod)) {
-            Text("VNI").tag(InputMethod.vni)
-            Text("Telex").tag(InputMethod.telex)
-        }
-        Divider()
-        Button("Mở NahtKey…") {
-            lifecycle.showMainWindow { openWindow(id: "main") }
-        }
-        Divider()
-        Button("Thoát hoàn toàn NahtKey") { lifecycle.quitCompletely() }
     }
 }
 
@@ -138,7 +90,7 @@ private struct MainView: View {
             .padding(20)
             Divider()
             TabView {
-                DictionaryView(store: dictionary).tabItem { Label("Từ cá nhân", systemImage: "text.book.closed") }
+                DictionaryView(store: dictionary, inputMethod: keyboard.inputMethod).tabItem { Label("Từ cá nhân", systemImage: "text.book.closed") }
                 TypingLabView(store: dictionary, inputMethod: keyboard.inputMethod)
                     .tabItem { Label("Thử gõ", systemImage: "keyboard") }
             }
@@ -146,7 +98,8 @@ private struct MainView: View {
             HStack {
                 Text("\(keyboard.inputMethod.displayName) · Unicode").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Text("Đóng cửa sổ để tiếp tục chạy ở thanh menu.").font(.caption).foregroundStyle(.secondary)
+                Text("Ctrl + Shift: bật/tắt · Bấm đúp biểu tượng menu để mở.")
+                    .font(.caption).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.bottom, 12)
         }
         .frame(minWidth: 760, minHeight: 580)

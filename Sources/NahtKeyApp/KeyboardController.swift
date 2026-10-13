@@ -29,6 +29,7 @@ final class KeyboardController: ObservableObject {
     private var focusedElement: AXUIElement?
     private var secureFocus = false
     private var wantsEnabled = true
+    private var toggleGesture = ModifierToggleState()
     private static let eventMarker: Int64 = 0x4E4148544B4559
 
     init() {
@@ -47,6 +48,7 @@ final class KeyboardController: ObservableObject {
             MainActor.assumeIsolated { self?.refreshEnvironment() }
         }
         if wantsEnabled { start() }
+        else if hasPermission { start(activate: false) }
     }
 
     func updateCorrections(_ corrections: [String: String]) {
@@ -58,15 +60,18 @@ final class KeyboardController: ObservableObject {
         let previouslyPermitted = hasPermission
         hasPermission = AXIsProcessTrusted()
         _ = currentInputApplication()
-        if IsSecureEventInputEnabled() { engine.reset() }
+        if IsSecureEventInputEnabled() { engine.reset(); toggleGesture.reset() }
         let competitors: Set<String> = ["com.trankynam.GoTiengViet", "com.tuyenmai.openkey", "com.lamquangminh.evkey"]
         otherInputApps = NSWorkspace.shared.runningApplications.compactMap { app in
             guard let id = app.bundleIdentifier else { return nil }
             let name = app.localizedName ?? id
             return competitors.contains(id) || name.lowercased().contains("evkey") ? name : nil
         }.sorted()
-        if !hasPermission && isEnabled { stop() }
-        if hasPermission && !previouslyPermitted && wantsEnabled { start(refresh: false) }
+        if !hasPermission {
+            if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
+            if isEnabled { stop() }
+        }
+        if hasPermission && !previouslyPermitted { start(refresh: false, activate: wantsEnabled) }
     }
 
     func requestPermission() {
@@ -160,7 +165,7 @@ final class KeyboardController: ObservableObject {
         if secureFocus { engine.reset() }
     }
 
-    private func start(refresh: Bool = true) {
+    private func start(refresh: Bool = true, activate: Bool = true) {
         if refresh { refreshEnvironment() }
         guard hasPermission else {
             errorMessage = "Cấp quyền Trợ năng cho NahtKey để bật bộ gõ."
@@ -169,7 +174,7 @@ final class KeyboardController: ObservableObject {
         if let tap {
             engine.reset()
             CGEvent.tapEnable(tap: tap, enable: true)
-            isEnabled = true
+            isEnabled = activate
             errorMessage = nil
             return
         }
@@ -178,6 +183,8 @@ final class KeyboardController: ObservableObject {
             | (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.rightMouseDown.rawValue)
+            | (1 << CGEventType.leftMouseDragged.rawValue)
+            | (1 << CGEventType.rightMouseDragged.rawValue)
         let context = Unmanaged.passUnretained(self).toOpaque()
         guard let newTap = CGEvent.tapCreate(
             tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
@@ -201,27 +208,47 @@ final class KeyboardController: ObservableObject {
         source = newSource
         CFRunLoopAddSource(CFRunLoopGetMain(), newSource, .commonModes)
         CGEvent.tapEnable(tap: newTap, enable: true)
-        isEnabled = true
+        isEnabled = activate
         errorMessage = nil
         engine.reset()
     }
 
     private func stop() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        // Keep the lightweight modifier listener alive so Ctrl+Shift can enable
+        // typing again. Off-mode events are returned before reading text content.
+        if let tap { CGEvent.tapEnable(tap: tap, enable: hasPermission) }
         engine.reset()
         isEnabled = false
         consumedKeys.removeAll()
+        errorMessage = nil
     }
 
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let pass = Unmanaged.passUnretained(event)
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             engine.reset()
-            if isEnabled, hasPermission, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            toggleGesture.reset()
+            if hasPermission, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return pass
         }
-        guard isEnabled else { return pass }
         guard event.getIntegerValueField(.eventSourceUserData) != Self.eventMarker else { return pass }
+        if IsSecureEventInputEnabled() {
+            engine.reset()
+            toggleGesture.reset()
+            return pass
+        }
+        if type == .flagsChanged {
+            if toggleGesture.flagsChanged(event.flags) {
+                engine.reset()
+                toggle()
+            }
+        } else if type == .keyDown || type == .leftMouseDown || type == .rightMouseDown
+                    || type == .leftMouseDragged || type == .rightMouseDragged {
+            // Only invalidate an active modifier gesture; ordinary typing must
+            // not require an extra failed Ctrl+Shift before the next toggle.
+            toggleGesture.usedOtherInput(flags: event.flags)
+        }
+        guard isEnabled else { return pass }
         let key = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp {
             return consumedKeys.remove(key) != nil ? nil : pass
@@ -231,7 +258,9 @@ final class KeyboardController: ObservableObject {
         let activeApp = type == .keyDown ? currentInputApplication() : nil
         // Password entry is owned by macOS; discard any partially composed word.
         guard !IsSecureEventInputEnabled(), !secureFocus else { engine.reset(); return pass }
-        if type == .leftMouseDown || type == .rightMouseDown { engine.reset(); return pass }
+        if type == .leftMouseDown || type == .rightMouseDown || type == .leftMouseDragged || type == .rightMouseDragged {
+            engine.reset(); return pass
+        }
         let flags = event.flags
         if type == .flagsChanged {
             if !flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty { engine.reset() }

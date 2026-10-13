@@ -9,6 +9,8 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     private weak var mainWindow: NSWindow?
     private var windowDelegate: BackgroundWindowDelegate?
     private var allowsTermination = false
+    private var statusItemController: NativeStatusItemController?
+    private var createMainWindow: (() -> Void)?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
@@ -21,12 +23,27 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        guard mainWindow != nil else {
+        guard mainWindow != nil || createMainWindow != nil else {
             sender.setActivationPolicy(.regular)
             return true
         }
         showMainWindow()
         return false
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        statusItemController?.shutdown()
+        statusItemController = nil
+    }
+
+    func installStatusItem(keyboard: KeyboardController, createMainWindow: @escaping () -> Void) {
+        guard statusItemController == nil else { return }
+        self.createMainWindow = createMainWindow
+        statusItemController = NativeStatusItemController(
+            keyboard: keyboard,
+            openWindow: { [weak self] in self?.showMainWindow() },
+            quit: { [weak self] in self?.quitCompletely() }
+        )
     }
 
     func registerMainWindow(_ window: NSWindow) {
@@ -45,12 +62,13 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     }
 
     func showMainWindow(createWindow: (() -> Void)? = nil) {
+        statusItemController?.cancelPendingClick()
         NSApp.setActivationPolicy(.regular)
         NSApp.unhide(nil)
         if let mainWindow {
             mainWindow.makeKeyAndOrderFront(nil)
         } else {
-            createWindow?()
+            (createWindow ?? createMainWindow)?()
         }
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -100,9 +118,15 @@ private final class BackgroundWindowDelegate: NSObject, NSWindowDelegate {
 
 struct MainWindowRegistration: NSViewRepresentable {
     let lifecycle: ApplicationLifecycle
+    let keyboard: KeyboardController
+    @Environment(\.openWindow) private var openWindow
 
     func makeNSView(context: Context) -> NSView {
-        WindowObserverView { window in lifecycle.registerMainWindow(window) }
+        let openWindow = openWindow
+        return WindowObserverView { window in
+            lifecycle.registerMainWindow(window)
+            lifecycle.installStatusItem(keyboard: keyboard, createMainWindow: { openWindow(id: "main") })
+        }
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {}
