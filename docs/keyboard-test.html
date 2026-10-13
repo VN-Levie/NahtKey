@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="vi"><meta charset="utf-8"><title>NahtKey — kiểm tra bàn phím</title>
+<style>
+body{font:17px system-ui;margin:40px auto;max-width:800px;padding:0 24px;color:#183133;background:#f3f8f7}
+h1{font-size:28px}label{display:block;margin:24px 0 8px;font-weight:600}
+input,textarea,[contenteditable]{box-sizing:border-box;width:100%;padding:14px;font:20px system-ui;border:1px solid #9ab9b4;border-radius:8px;background:white;min-height:56px}
+textarea,[contenteditable]{min-height:130px}p{line-height:1.6}code{background:#dfeeea;padding:2px 5px}small{display:block;color:#55716b;margin-top:6px}
+</style>
+<h1>Kiểm tra NahtKey</h1>
+<p>VNI: <code>d9a4 uu7 abn5 ab5n</code> → <strong>đã ưu bạn bạn</strong><br>Telex: <code>ddax uuw tieengs Vieetj</code> → <strong>đã ưu tiếng Việt</strong></p>
+<p>Gõ ngay đầu ô, thử chọn hết rồi xóa, chuyển ô bằng Tab và gõ nhanh nhiều từ. Trang này không lưu hoặc gửi dữ liệu.</p>
+<label for="single">Ô input</label><input id="single" aria-label="Ô input kiểm tra NahtKey" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus>
+<label for="multi">Ô textarea</label><textarea id="multi" aria-label="Ô textarea kiểm tra NahtKey" autocapitalize="off" spellcheck="false"></textarea>
+<label for="editable">Ô contenteditable</label><div id="editable" contenteditable="true" role="textbox" aria-label="Ô contenteditable kiểm tra NahtKey" spellcheck="false"></div>
+<small>Chỉ kiểm tra bàn phím; không có thư viện hoặc dịch vụ bên ngoài.</small>
+</html>
