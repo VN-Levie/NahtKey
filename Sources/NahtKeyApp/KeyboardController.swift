@@ -23,10 +23,7 @@ final class KeyboardController: ObservableObject {
     private let ownBundleID = Bundle.main.bundleIdentifier ?? "vn.nahtkey.mac"
     private let eventSource = KeyboardController.makeEventSource()
     private var commitSpaceAsText = false
-    private var consumedKeys = Set<Int64>()
-    // Native key-downs already sent to the target but not yet followed by up.
-    // HID alone may have advanced ahead of events waiting in this tap's queue.
-    private var passedKeysDown = Set<CGKeyCode>()
+    private var keyDelivery = KeyDeliveryState()
     private var focusObserver: AXObserver?
     private var focusApplication: AXUIElement?
     private var focusedElement: AXUIElement?
@@ -63,7 +60,7 @@ final class KeyboardController: ObservableObject {
         let previouslyPermitted = hasPermission
         hasPermission = AXIsProcessTrusted()
         _ = currentInputApplication()
-        if IsSecureEventInputEnabled() { engine.reset(); toggleGesture.reset() }
+        if IsSecureEventInputEnabled() { engine.reset(); keyDelivery.reset(); toggleGesture.reset() }
         let competitors: Set<String> = ["com.trankynam.GoTiengViet", "com.tuyenmai.openkey", "com.lamquangminh.evkey"]
         otherInputApps = NSWorkspace.shared.runningApplications.compactMap { app in
             guard let id = app.bundleIdentifier else { return nil }
@@ -165,7 +162,7 @@ final class KeyboardController: ObservableObject {
         var protected: CFTypeRef?
         AXUIElementCopyAttributeValue(element, "AXProtectedContent" as CFString, &protected)
         secureFocus = (subrole as? String) == kAXSecureTextFieldSubrole as String || (protected as? Bool) == true
-        if secureFocus { engine.reset() }
+        if secureFocus { engine.reset(); keyDelivery.reset() }
     }
 
     private func start(refresh: Bool = true, activate: Bool = true) {
@@ -176,7 +173,7 @@ final class KeyboardController: ObservableObject {
         }
         if let tap {
             engine.reset()
-            passedKeysDown.removeAll()
+            keyDelivery.reset()
             CGEvent.tapEnable(tap: tap, enable: true)
             isEnabled = activate
             errorMessage = nil
@@ -223,8 +220,7 @@ final class KeyboardController: ObservableObject {
         if let tap { CGEvent.tapEnable(tap: tap, enable: hasPermission) }
         engine.reset()
         isEnabled = false
-        consumedKeys.removeAll()
-        passedKeysDown.removeAll()
+        keyDelivery.reset()
         errorMessage = nil
     }
 
@@ -232,7 +228,7 @@ final class KeyboardController: ObservableObject {
         let pass = Unmanaged.passUnretained(event)
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             engine.reset()
-            passedKeysDown.removeAll()
+            keyDelivery.reset()
             toggleGesture.reset()
             if hasPermission, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return pass
@@ -240,10 +236,23 @@ final class KeyboardController: ObservableObject {
         guard event.getIntegerValueField(.eventSourceUserData) != Self.eventMarker else { return pass }
         if IsSecureEventInputEnabled() {
             engine.reset()
-            passedKeysDown.removeAll()
+            keyDelivery.reset()
             toggleGesture.reset()
             return pass
         }
+        let key = CGKeyCode(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
+        if type == .keyUp {
+            return keyDelivery.release(key) ? pass : nil
+        }
+        let result = handleInput(proxy: proxy, type: type, event: event)
+        if type == .keyDown && isEnabled && !secureFocus {
+            keyDelivery.recordDown(key, forwarded: result != nil)
+        }
+        return result
+    }
+
+    private func handleInput(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        let pass = Unmanaged.passUnretained(event)
         if type == .flagsChanged {
             if toggleGesture.flagsChanged(event.flags) {
                 engine.reset()
@@ -257,10 +266,6 @@ final class KeyboardController: ObservableObject {
         }
         guard isEnabled else { return pass }
         let key = event.getIntegerValueField(.keyboardEventKeycode)
-        if type == .keyUp {
-            passedKeysDown.remove(CGKeyCode(truncatingIfNeeded: key))
-            return consumedKeys.remove(key) != nil ? nil : pass
-        }
         // Refresh process/focus before consulting secureFocus, which belongs to
         // the previously watched application until this transition is handled.
         let activeApp = type == .keyDown ? currentInputApplication() : nil
@@ -275,10 +280,7 @@ final class KeyboardController: ObservableObject {
             return pass
         }
         guard type == .keyDown else { return pass }
-        // A repeated physical down may become pass-through after an earlier
-        // transformed down; its final up must follow the latest down's treatment.
-        consumedKeys.remove(key)
-        // Dictionary editors accept literal aliases. The built-in lab uses the same pure engine.
+        // NahtKey's editing fields and lab compose locally with the same engine.
         guard let activeApp, activeApp.bundleIdentifier != ownBundleID else {
             engine.reset()
             return pass
@@ -293,7 +295,6 @@ final class KeyboardController: ObservableObject {
             if edit.deleteCount == 1 && edit.insertText.isEmpty { return pass }
             if edit.deleteCount == 0 && edit.insertText.isEmpty { return pass }
             guard post(edit, proxy: proxy) else { engine.reset(); return pass }
-            consumedKeys.insert(key)
             return nil
         }
         if [36, 48, 49, 76].contains(key) { // Return, Tab, Space, keypad Return
@@ -306,7 +307,6 @@ final class KeyboardController: ObservableObject {
                 // Do not mix synthetic word replacement with a physical delimiter.
                 guard post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
                 else { engine.reset(); return pass }
-                consumedKeys.insert(key)
                 return nil
             }
             if !post(edit, proxy: proxy, previousWord: previousWord) { engine.reset() }
@@ -328,12 +328,8 @@ final class KeyboardController: ObservableObject {
             resumeWordIfNeeded(for: character)
             let previousWord = engine.rendered
             let edit = engine.process(character)
-            if edit.deleteCount == 0 && edit.insertText == text {
-                passedKeysDown.insert(CGKeyCode(truncatingIfNeeded: key))
-                return pass
-            }
+            if edit.deleteCount == 0 && edit.insertText == text { return pass }
             guard post(edit, proxy: proxy, previousWord: previousWord) else { engine.reset(); return pass }
-            consumedKeys.insert(key)
             return nil
         }
         if ascii >= 32 && ascii < 127 {
@@ -364,7 +360,7 @@ final class KeyboardController: ObservableObject {
         let operations = ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion)
         guard let events = KeyboardEventBatch.make(operations, source: eventSource, marker: Self.eventMarker,
                                                    isPhysicallyDown: { key in
-            self.passedKeysDown.contains(key) || CGEventSource.keyState(.hidSystemState, key: key)
+            self.keyDelivery.hasForwardedDown(key) || CGEventSource.keyState(.hidSystemState, key: key)
         })
         else { return false }
         for event in events { event.tapPostEvent(proxy) }
