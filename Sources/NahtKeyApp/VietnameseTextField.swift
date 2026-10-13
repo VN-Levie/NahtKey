@@ -44,11 +44,13 @@ struct LocalFieldReplacement: Equatable {
 }
 
 /// Composes only this field, independently of global Accessibility permission.
-/// The alias field and every other NahtKey control continue receiving literal keys.
+/// Other controls retain their ordinary native input behavior.
 struct VietnameseTextField: NSViewRepresentable {
     @Binding var text: String
     var inputMethod: InputMethod
     var placeholder: String
+    var accessibilityLabel = "Thay bằng"
+    var accessibilityIdentifier = "correction-replacement"
     var onSubmit: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -63,8 +65,8 @@ struct VietnameseTextField: NSViewRepresentable {
         field.font = .systemFont(ofSize: NSFont.systemFontSize)
         field.isAutomaticTextCompletionEnabled = false
         field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setAccessibilityLabel("Thay bằng")
-        field.setAccessibilityIdentifier("correction-replacement")
+        field.setAccessibilityLabel(accessibilityLabel)
+        field.setAccessibilityIdentifier(accessibilityIdentifier)
         field.delegate = context.coordinator
         field.target = context.coordinator
         field.action = #selector(Coordinator.submit(_:))
@@ -76,6 +78,8 @@ struct VietnameseTextField: NSViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.updateMethod(inputMethod)
         field.placeholderString = placeholder
+        field.setAccessibilityLabel(accessibilityLabel)
+        field.setAccessibilityIdentifier(accessibilityIdentifier)
         guard field.stringValue != text else { return }
         context.coordinator.reset()
         let editor = field.currentEditor() as? NSTextView
@@ -147,7 +151,13 @@ struct VietnameseTextField: NSViewRepresentable {
             expectedSelection = nil
         }
 
-        @objc func submit(_ sender: NSTextField) { parent.onSubmit() }
+        @objc func submit(_ sender: NSTextField) {
+            // NSTextField also sends its action when Tab/click ends editing.
+            // Only Return/Enter should submit the containing form.
+            guard let event = NSApp.currentEvent, event.type == .keyDown,
+                  event.keyCode == 36 || event.keyCode == 76 else { return }
+            parent.onSubmit()
+        }
 
         func controlTextDidBeginEditing(_ notification: Notification) {
             reset()

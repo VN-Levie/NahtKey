@@ -24,7 +24,7 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard mainWindow != nil || createMainWindow != nil else {
-            sender.setActivationPolicy(.regular)
+            sender.setActivationPolicy(.accessory)
             return true
         }
         showMainWindow()
@@ -62,7 +62,8 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     }
 
     func showMainWindow(createWindow: (() -> Void)? = nil) {
-        NSApp.setActivationPolicy(.regular)
+        // Accessory apps can show/edit windows without joining the Dock or Cmd+Tab.
+        NSApp.setActivationPolicy(.accessory)
         NSApp.unhide(nil)
         if let mainWindow {
             mainWindow.makeKeyAndOrderFront(nil)

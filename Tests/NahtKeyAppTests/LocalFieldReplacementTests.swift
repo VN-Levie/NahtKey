@@ -4,6 +4,21 @@ import NahtKeyCore
 @testable import NahtKeyApp
 
 final class LocalFieldReplacementTests: XCTestCase {
+    func testUnifiedAliasFieldAcceptsRawExamplesAndVietnameseWithoutPersonalExpansion() throws {
+        for (keys, expected) in [("abn5", "abn5"), ("ab5n", "ab5n"), ("cau2", "càu"), ("chua7", "chưa")] {
+            let engine = VNIEngine(inputMethod: .vni)
+            var text = ""
+            var selection = NSRange(location: 0, length: 0)
+            for character in keys {
+                let replacement = try XCTUnwrap(LocalFieldReplacement.make(
+                    edit: engine.process(character), in: text, selection: selection))
+                text = try apply(replacement, to: text)
+                selection = replacement.selectionAfter
+            }
+            XCTAssertEqual(text, expected, keys)
+        }
+    }
+
     private func apply(_ replacement: LocalFieldReplacement, to text: String) throws -> String {
         let range = try XCTUnwrap(Range(replacement.range, in: text))
         var result = text

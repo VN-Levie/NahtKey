@@ -175,9 +175,6 @@ private struct CorrectionEditor: View {
     @State private var raw: String
     @State private var replacement: String
     @State private var validationMessage: String?
-    @FocusState private var focus: Field?
-
-    private enum Field { case raw }
 
     init(store: DictionaryStore, entry: CorrectionEntry?, inputMethod: InputMethod) {
         self.store = store
@@ -194,12 +191,12 @@ private struct CorrectionEditor: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("Chuỗi gõ hoặc từ cần sửa").font(.headline)
-                TextField("Ví dụ: abn5 hoặc càu", text: $raw)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .focused($focus, equals: .raw)
-                    .accessibilityIdentifier("correction-raw")
-                Text("Nhập phím gốc như abn5 hoặc từ có dấu như càu. Tối đa 64 ký tự, không có khoảng trắng.")
+                VietnameseTextField(text: $raw, inputMethod: inputMethod,
+                                    placeholder: "Ví dụ: abn5 hoặc càu",
+                                    accessibilityLabel: "Chuỗi gõ hoặc từ cần sửa",
+                                    accessibilityIdentifier: "correction-raw", onSubmit: save)
+                    .frame(height: 22)
+                Text("Chuỗi gõ hoặc từ có dấu; tối đa 64 ký tự, không có khoảng trắng.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -234,7 +231,6 @@ private struct CorrectionEditor: View {
         }
         .padding(24)
         .frame(width: 420)
-        .onAppear { focus = .raw }
     }
 
     private func save() {

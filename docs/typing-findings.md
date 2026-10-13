@@ -106,3 +106,13 @@ Tái hiện bằng bàn phím thật trong Input Probe (NSTextView riêng, chỉ
 0.3.5 chọn một mã phím chữ ANSI đang rảnh cho cả cặp down/up và mọi chunk của lần chèn Unicode. Ưu tiên giữ A như trước khi A rảnh, dùng B/C… nếu đang giữ A; không dùng phím chức năng hoặc mã reserved. Kết hợp các key-down đã cho qua nhưng chưa nhận key-up với trạng thái HID hiện tại. Chuẩn bị đủ toàn bộ event trước lần xóa đầu tiên; nếu không chuẩn bị được thì reset phiên và cho phím gốc đi qua, không xóa dở rồi bỏ phần chèn.
 
 Kiểm chứng lại cùng ô thử: sau `chua → chu → ch`, Unicode `ưa` có marker NahtKey đến qua key 11 (ANSI B), nội dung trở thành `chưa`, rồi mới tới key-up A. Người dùng xác nhận **“Đã thử, chữ ra đúng”**; ô thử chứa `mưa, chưa, chưa, ưu, mưa, cưa`. Tổng 87 kiểm thử đạt. Đây là bằng chứng khắc phục lỗi giữ A đã tái hiện, không phải bảo đảm mọi chord hoặc mọi editor đều giống NSTextView. Không sửa quy tắc `ưu`, không thêm sleep hay thay đổi clipboard/AXValue.
+
+## Rà chồng phím rộng hơn và thống nhất ô nhập — 0.3.6
+
+Mở rộng hồi quy cho VNI `0–9`, giữ `a/e`, các thứ tự dấu/hình dấu khác nhau, chữ hoa, escape bằng dấu lặp, sửa cá nhân và Unicode nhiều chunk. Có 288 tổ hợp từ/thứ tự thả phím/trạng thái các phím đang giữ trong mô hình phát sự kiện, cộng hai ca sửa cá nhân/Unicode dài. Kiểm tra cả phím đang giữ theo HID và phím đã chuyển tới target nhưng chưa thả; mọi cặp Unicode down/up phải tránh các phím đó. Đây là mô hình xác định với NSTextView, không giả làm kiểm thử timing của Quartz. Lõi không cần thay quy tắc ghép dấu.
+
+Phát hiện thêm lỗi có thể tái hiện bằng trạng thái: lần `a` đầu của Telex được cho qua, lần lặp `a` sau đổi thành `â` và bị nuốt; code cũ nhìn lần cuối nên nuốt luôn key-up, mặc dù target đã nhận key-down đầu. `KeyDeliveryState` nay theo dõi toàn bộ lần giữ phím: chỉ cần một key-down được chuyển tới target thì key-up phải được chuyển tiếp. Chỉ nuốt key-up khi tất cả các lần down đều bị bộ gõ xử lý. Reset tap/secure/stop xóa trạng thái thống nhất, không để sót tập phím đã nuốt. Tổng 101 test đạt sau rà soát.
+
+Theo yêu cầu người dùng, ô **Chuỗi gõ hoặc từ cần sửa** dùng chung trường nhập VNI/Telex với **Thay bằng**, không thêm lựa chọn chế độ. Kiểm tra trên UI cài thật: `cau2 → càu`, `abn5 → abn5`, `ab5n → ab5n`; chuyển Tab sang ô dưới và gõ `cua73 → cửa` độc lập. Sửa thêm action NSTextField để chỉ Return/Enter mới submit; Tab/click chuyển ô không gọi lưu sớm. Hủy form kiểm thử, thư viện vẫn 15 mục và giữ nguyên sửa đổi riêng của người dùng.
+
+Cửa sổ quản lý luôn dùng activation policy accessory, cả đường mở lại từ menu và mở app. Xác minh khi cửa sổ đang mở: tiến trình chạy, `accessory=true`, `hidden=false`; không tự gia nhập Dock. Quyền Trợ năng và VNI vẫn bật sau cài.
