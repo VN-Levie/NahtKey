@@ -3,33 +3,22 @@ import SwiftUI
 import NahtKeyCore
 
 @main
-struct NahtKeyApp: App {
-    @NSApplicationDelegateAdaptor(ApplicationLifecycle.self) private var lifecycle
-    @StateObject private var dictionary = DictionaryStore()
-    @StateObject private var keyboard = KeyboardController()
-
-    var body: some Scene {
-        Window("NahtKey", id: "main") {
-            MainView(dictionary: dictionary, keyboard: keyboard)
-                .background(MainWindowRegistration(lifecycle: lifecycle, keyboard: keyboard))
-                .onReceive(dictionary.$entries) { entries in
-                    keyboard.updateCorrections(Dictionary(uniqueKeysWithValues: entries.map { ($0.raw, $0.replacement) }))
-                }
-        }
-        .defaultSize(width: 880, height: 650)
-        .windowResizability(.contentMinSize)
-        .commands {
-            CommandGroup(replacing: .appTermination) {
-                Button("Ẩn NahtKey") { lifecycle.hideToMenuBar() }
-                    .keyboardShortcut("q", modifiers: .command)
-            }
-        }
+enum NahtKeyApp {
+    @MainActor static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        let lifecycle = ApplicationLifecycle()
+        app.delegate = lifecycle
+        // SwiftUI renders only an explicitly opened window; no default Window
+        // scene can flash at login, including on our macOS 14 deployment target.
+        withExtendedLifetime(lifecycle) { app.run() }
     }
 }
 
-private struct MainView: View {
+struct MainView: View {
     @ObservedObject var dictionary: DictionaryStore
     @ObservedObject var keyboard: KeyboardController
+    @ObservedObject var loginItem: LoginItemController
 
     private let brandImage = Bundle.main.url(forResource: "NahtKeyIcon", withExtension: "png")
         .flatMap { NSImage(contentsOf: $0) } ?? NSImage(named: "NahtKeyIcon")
@@ -69,6 +58,7 @@ private struct MainView: View {
                             .buttonStyle(.borderedProminent)
                     }
                 }
+                LoginItemSettingsView(controller: loginItem)
                 if !keyboard.hasPermission {
                     Text("Cho phép NahtKey trong System Settings → Privacy & Security → Accessibility để gõ trong ứng dụng khác.")
                         .font(.callout).foregroundStyle(.secondary)

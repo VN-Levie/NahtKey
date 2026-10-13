@@ -1,20 +1,44 @@
 import AppKit
 import Carbon
+import Combine
 import SwiftUI
 
-/// Closing the settings window leaves the input hook and the menu-bar item alive.
-/// A normal Quit request has the same effect; complete termination is explicit.
+/// Services live independently of windows. Login creates the menu and keyboard
+/// hook, but never constructs a window or restores saved windows.
 @MainActor
-final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
-    private weak var mainWindow: NSWindow?
-    private var windowDelegate: BackgroundWindowDelegate?
+final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private let dictionary = DictionaryStore()
+    private let keyboard = KeyboardController()
+    private let loginItem = LoginItemController()
+    private var dictionaryObservation: AnyCancellable?
+    private var mainWindow: NSWindow?
     private var allowsTermination = false
+    private var acceptsUserReopen = false
     private var statusItemController: NativeStatusItemController?
-    private var createMainWindow: (() -> Void)?
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Read now: currentAppleEvent changes after the launch callback.
+        let background = StartupPolicy.isBackgroundLaunch(
+            event: NSAppleEventManager.shared().currentAppleEvent,
+            arguments: ProcessInfo.processInfo.arguments)
+        NSApp.setActivationPolicy(.accessory)
+        installApplicationMenu()
+        dictionaryObservation = dictionary.$entries.sink { [weak self] entries in
+            self?.keyboard.updateCorrections(Dictionary(uniqueKeysWithValues: entries.map { ($0.raw, $0.replacement) }))
+        }
+        statusItemController = NativeStatusItemController(
+            keyboard: keyboard,
+            openWindow: { [weak self] in self?.showMainWindow() },
+            quit: { [weak self] in self?.quitCompletely() })
+        if !background { showMainWindow() }
+        // AppKit may issue an initial reopen without retaining the launch event.
+        // Ignore that launch turn; later explicit opens can still show the window.
+        DispatchQueue.main.async { [weak self] in self?.acceptsUserReopen = true }
     }
+
+    func applicationDidBecomeActive(_ notification: Notification) { loginItem.refresh() }
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !allowsTermination, !isSystemTermination else { return .terminateNow }
@@ -23,53 +47,51 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        guard mainWindow != nil || createMainWindow != nil else {
-            sender.setActivationPolicy(.accessory)
-            return true
-        }
+        guard acceptsUserReopen,
+              !StartupPolicy.isLoginEvent(NSAppleEventManager.shared().currentAppleEvent) else { return false }
         showMainWindow()
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        dictionaryObservation?.cancel()
         statusItemController?.shutdown()
         statusItemController = nil
     }
 
-    func installStatusItem(keyboard: KeyboardController, createMainWindow: @escaping () -> Void) {
-        guard statusItemController == nil else { return }
-        self.createMainWindow = createMainWindow
-        statusItemController = NativeStatusItemController(
-            keyboard: keyboard,
-            openWindow: { [weak self] in self?.showMainWindow() },
-            quit: { [weak self] in self?.quitCompletely() }
-        )
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        hideToMenuBar()
+        return false
     }
 
-    func registerMainWindow(_ window: NSWindow) {
-        guard mainWindow !== window else { return }
-        mainWindow = window
-        window.isReleasedWhenClosed = false
-        let delegate = BackgroundWindowDelegate(lifecycle: self, original: window.delegate)
-        windowDelegate = delegate
-        window.delegate = delegate
-    }
+    @objc private func hideFromMenu(_ sender: Any?) { hideToMenuBar() }
+    @objc private func quitFromMenu(_ sender: Any?) { quitCompletely() }
 
     func hideToMenuBar() {
-        // Hiding preserves sheets and other settings windows, including unsaved fields.
+        // Preserve sheets and unsaved fields when hiding the window.
         NSApp.hide(nil)
-        NSApp.setActivationPolicy(.accessory)
     }
 
-    func showMainWindow(createWindow: (() -> Void)? = nil) {
-        // Accessory apps can show/edit windows without joining the Dock or Cmd+Tab.
+    func showMainWindow() {
         NSApp.setActivationPolicy(.accessory)
-        NSApp.unhide(nil)
-        if let mainWindow {
-            mainWindow.makeKeyAndOrderFront(nil)
-        } else {
-            (createWindow ?? createMainWindow)?()
+        if mainWindow == nil {
+            let content = MainView(dictionary: dictionary, keyboard: keyboard, loginItem: loginItem)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: content))
+            window.title = "NahtKey"
+            window.setAccessibilityIdentifier("main")
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 880, height: 650))
+            window.contentMinSize = NSSize(width: 760, height: 580)
+            window.isReleasedWhenClosed = false
+            window.isRestorable = false
+            window.delegate = self
+            window.center()
+            mainWindow = window
         }
+        loginItem.refresh()
+        NSApp.unhide(nil)
+        if mainWindow?.isMiniaturized == true { mainWindow?.deminiaturize(nil) }
+        mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -78,77 +100,45 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    private var isSystemTermination: Bool {
-        // A user Quit stays in the menu bar; system logout/restart/shutdown must finish.
-        guard let event = NSAppleEventManager.shared().currentAppleEvent,
-              let reason = event.paramDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue else {
-            return false
+    private func installApplicationMenu() {
+        let bar = NSMenu()
+        func submenu(_ title: String) -> NSMenu {
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let menu = NSMenu(title: title)
+            item.submenu = menu
+            bar.addItem(item)
+            return menu
         }
+        let appMenu = submenu("NahtKey")
+        for key in ["h", "q"] {
+            let title = key == "h" ? "Ẩn NahtKey" : "Ẩn cửa sổ"
+            let item = appMenu.addItem(withTitle: title, action: #selector(hideFromMenu(_:)), keyEquivalent: key)
+            item.target = self
+        }
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Thoát hoàn toàn NahtKey", action: #selector(quitFromMenu(_:)), keyEquivalent: "").target = self
+        let file = submenu("Tệp")
+        file.addItem(withTitle: "Đóng cửa sổ", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let edit = submenu("Sửa")
+        edit.addItem(withTitle: "Hoàn tác", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Làm lại", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        for (title, action, key) in [("Cắt", "cut:", "x"), ("Sao chép", "copy:", "c"),
+                                     ("Dán", "paste:", "v"), ("Chọn tất cả", "selectAll:", "a")] {
+            edit.addItem(withTitle: title, action: Selector(action), keyEquivalent: key)
+        }
+        let windows = submenu("Cửa sổ")
+        windows.addItem(withTitle: "Thu nhỏ", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windows.addItem(withTitle: "Thu phóng", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windows
+        NSApp.mainMenu = bar
+    }
+
+    private var isSystemTermination: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              let reason = event.paramDescriptor(forKeyword: AEKeyword(kAEQuitReason))?.enumCodeValue else { return false }
         return [kAEQuitAll, kAEShutDown, kAERestart, kAEReallyLogOut, kAELogOut]
             .map { OSType($0) }.contains(reason)
-    }
-}
-
-/// Keep SwiftUI's window callbacks intact while changing only the close behavior.
-@MainActor
-private final class BackgroundWindowDelegate: NSObject, NSWindowDelegate {
-    private weak var lifecycle: ApplicationLifecycle?
-    private weak var original: NSWindowDelegate?
-
-    init(lifecycle: ApplicationLifecycle, original: NSWindowDelegate?) {
-        self.lifecycle = lifecycle
-        self.original = original
-        super.init()
-    }
-
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        lifecycle?.hideToMenuBar()
-        return false
-    }
-
-    override func responds(to selector: Selector!) -> Bool {
-        super.responds(to: selector) || original?.responds(to: selector) == true
-    }
-
-    override func forwardingTarget(for selector: Selector!) -> Any? {
-        if original?.responds(to: selector) == true { return original }
-        return super.forwardingTarget(for: selector)
-    }
-}
-
-struct MainWindowRegistration: NSViewRepresentable {
-    let lifecycle: ApplicationLifecycle
-    let keyboard: KeyboardController
-    @Environment(\.openWindow) private var openWindow
-
-    func makeNSView(context: Context) -> NSView {
-        let openWindow = openWindow
-        return WindowObserverView { window in
-            lifecycle.registerMainWindow(window)
-            lifecycle.installStatusItem(keyboard: keyboard, createMainWindow: { openWindow(id: "main") })
-        }
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    @MainActor
-    private final class WindowObserverView: NSView {
-        let register: (NSWindow) -> Void
-
-        init(register: @escaping (NSWindow) -> Void) {
-            self.register = register
-            super.init(frame: .zero)
-        }
-
-        required init?(coder: NSCoder) { nil }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard let window else { return }
-            DispatchQueue.main.async { [weak self, weak window] in
-                guard let window else { return }
-                self?.register(window)
-            }
-        }
     }
 }
