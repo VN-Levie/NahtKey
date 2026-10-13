@@ -6,7 +6,7 @@ Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.4.0
 
 Tải `NahtKey-0.4.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén rồi kéo **NahtKey.app** vào **Applications**. Gói dành cho **Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
-Bản phát hành ký bằng chứng chỉ nội bộ cố định, chưa có Apple Developer ID/notarization. Nếu macOS chặn lần mở đầu, sau khi kiểm tra đúng bản tải từ repo này, mở **System Settings → Privacy & Security → Open Anyway** theo [hướng dẫn của Apple](https://support.apple.com/en-us/102445). Trên máy mới, bấm **Cấp quyền Trợ năng…** trong NahtKey rồi cho phép app trong mục macOS mở ra. Chọn nguồn nhập **ABC** và tắt chế độ tiếng Việt của bộ gõ khác.
+Bản phát hành chưa có notarization. Nếu macOS chặn lần mở đầu, vào **System Settings → Privacy & Security → Open Anyway** theo [hướng dẫn của Apple](https://support.apple.com/en-us/102445). Cấp **quyền Trợ năng** cho NahtKey, chọn nguồn nhập **ABC** và tắt bộ gõ tiếng Việt khác.
 
 Gói ứng dụng không chứa thư viện cá nhân hiện tại. Trên máy cũ chọn **Xuất…**, chuyển file JSON sang máy mới rồi chọn **Nhập…**.
 
