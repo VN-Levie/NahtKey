@@ -7,7 +7,7 @@ import NahtKeyCore
 final class ReplacementPlanTests: XCTestCase {
     @MainActor func testHornEditsPreservePrefixInNativeEditorThatDropsInvisibleInput() {
         // Rich editors may discard/normalize temporary invisible input. Replay
-        // the real plan on NSTextView so selection uses AppKit's caret behavior.
+        // the real plan on NSTextView using native insertion and deletion.
         let cases: [(InputMethod, String, String)] = [
             (.vni, "chu7a", "chưa"), (.vni, "chua7", "chưa"),
             (.vni, "cu7a", "cưa"), (.vni, "cua7", "cưa"),
@@ -25,14 +25,13 @@ final class ReplacementPlanTests: XCTestCase {
                     let edit = character == " "
                         ? ReplacementPlan.committingSpace(after: session.finish(boundary: character))
                         : session.process(character)
-                    for operation in ReplacementPlan.operations(for: edit, useSelection: true) {
+                    for operation in ReplacementPlan.operations(for: edit) {
                         switch operation {
                         case .text(let text):
                             let accepted = text.replacingOccurrences(of: "\u{202F}", with: "")
                                 .replacingOccurrences(of: "\u{200C}", with: "")
                             if !accepted.isEmpty { editor.insertText(accepted, replacementRange: editor.selectedRange()) }
                         case .backspace: editor.deleteBackward(nil)
-                        case .selectPreviousCharacter: editor.moveLeftAndModifySelection(nil)
                         }
                     }
                 }
@@ -49,7 +48,7 @@ final class ReplacementPlanTests: XCTestCase {
                 let edit = character == " "
                     ? ReplacementPlan.committingSpace(after: session.finish(boundary: character))
                     : session.process(character)
-                visible = apply(ReplacementPlan.operations(for: edit, useSelection: true),
+                visible = apply(ReplacementPlan.operations(for: edit),
                                 to: visible, selection: visible.count..<visible.count)
             }
         }
@@ -58,17 +57,16 @@ final class ReplacementPlanTests: XCTestCase {
 
     func testWordAndSpaceAreOneTransactionForOrdinaryAndPersonalWords() {
         let ordinary = ReplacementPlan.committingSpace(after: TextEdit(deleteCount: 0, insertText: ""))
-        XCTAssertEqual(apply(ReplacementPlan.operations(for: ordinary, useSelection: true),
+        XCTAssertEqual(apply(ReplacementPlan.operations(for: ordinary),
                              to: "gõ", selection: 2..<2), "gõ ")
         let correction = ReplacementPlan.committingSpace(after: TextEdit(deleteCount: 3, insertText: "bạn"))
-        let output = apply(ReplacementPlan.operations(for: correction, useSelection: true),
+        let output = apply(ReplacementPlan.operations(for: correction),
                            to: "ạbn", selection: 3..<3)
         XCTAssertEqual(output + "từ", "bạn từ")
         XCTAssertFalse(output.contains("\u{202F}"))
     }
 
-    // Model an editor with a forward selection: Shift+Left moves the active
-    // end, so it shrinks an existing forward selection rather than extending it.
+    // Model both an ordinary caret and a selected autocomplete suffix.
     private func apply(_ operations: [ReplacementOperation], to text: String, selection: Range<Int>) -> String {
         var characters = Array(text)
         var anchor = selection.lowerBound
@@ -85,36 +83,32 @@ final class ReplacementPlanTests: XCTestCase {
                 characters.removeSubrange(deletion)
                 caret = deletion.lowerBound
                 anchor = caret
-            case .selectPreviousCharacter:
-                caret = max(0, caret - 1)
             }
         }
         return String(characters)
     }
 
     func testFirstCharacterReplacementDoesNotRetainAutocompleteOrDropPrefix() {
-        let plan = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: "đ"), useSelection: true)
+        let plan = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: "đ"))
         let completion = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: "đ"),
-                                                     useSelection: true, clearInlineCompletion: true)
+                                                     clearInlineCompletion: true)
         XCTAssertEqual(apply(completion, to: "documentation", selection: 1..<13), "đ")
         XCTAssertEqual(apply(plan, to: "d", selection: 1..<1), "đ")
         XCTAssertEqual(apply(plan, to: "xin d", selection: 5..<5), "xin đ")
     }
 
     func testToneAndWholeWordCorrectionPreserveEarlierText() {
-        let tone = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: "ã"), useSelection: true)
+        let tone = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: "ã"))
         XCTAssertEqual(apply(tone, to: "xin đa", selection: 6..<6), "xin đã")
-        let correction = ReplacementPlan.operations(for: TextEdit(deleteCount: 3, insertText: "bạn"), useSelection: true)
+        let correction = ReplacementPlan.operations(for: TextEdit(deleteCount: 3, insertText: "bạn"))
         XCTAssertEqual(apply(correction, to: "xin ạbn", selection: 7..<7), "xin bạn")
     }
 
     func testNativeReplacementAndUnicodeChunksHaveNoGuardLeak() {
         let text = "👨‍👩‍👧‍👦" + String(repeating: "Việt", count: 20)
         XCTAssertEqual(ReplacementPlan.unicodeChunks(text).joined(), text)
-        let replacement = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: text), useSelection: false)
+        let replacement = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: text))
         XCTAssertEqual(apply(replacement, to: "x", selection: 1..<1), text)
-        let browser = ReplacementPlan.operations(for: TextEdit(deleteCount: 1, insertText: text), useSelection: true)
-        XCTAssertEqual(apply(browser, to: "x", selection: 1..<1), text)
     }
 
     @MainActor func testSyntheticSourceNeverSuppressesPhysicalKeyboard() throws {

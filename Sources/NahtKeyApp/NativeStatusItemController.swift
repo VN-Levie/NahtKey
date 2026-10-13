@@ -28,13 +28,11 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         disabledIcon = Self.makeDisabledIcon(from: icon)
         super.init()
         configureMenu()
+        statusItem.menu = menu
         if let button = statusItem.button {
             button.title = ""
             button.imagePosition = .imageOnly
             button.image = enabledIcon
-            button.target = self
-            button.action = #selector(clicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.setAccessibilityIdentifier("NahtKeyStatusItem")
         }
         observation = keyboard.$isEnabled.combineLatest(keyboard.$inputMethod).sink { [weak self] enabled, method in
@@ -48,16 +46,13 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         observation?.cancel()
         observation = nil
         menu.cancelTracking()
-        statusItem.button?.target = nil
+        statusItem.menu = nil
+        menu.delegate = nil
         NSStatusBar.system.removeStatusItem(statusItem)
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         refresh(enabled: keyboard.isEnabled, method: keyboard.inputMethod)
-    }
-
-    @objc private func clicked(_ sender: NSStatusBarButton) {
-        showMenu()
     }
 
     @objc private func toggleInput(_ sender: NSMenuItem) { keyboard.toggle() }
@@ -107,13 +102,6 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         let status = "NahtKey, \(method.displayName), \(enabled ? "đang bật" : "đang tắt")"
         statusItem.button?.setAccessibilityLabel(status)
         statusItem.button?.toolTip = "\(status)\nCtrl + Shift: bật/tắt. Bấm để mở menu."
-    }
-
-    private func showMenu() {
-        guard !removed, let button = statusItem.button else { return }
-        button.highlight(true)
-        defer { button.highlight(false) }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
     }
 
     private static func makeDisabledIcon(from base: NSImage?) -> NSImage? {

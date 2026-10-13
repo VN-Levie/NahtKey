@@ -1,6 +1,6 @@
 # NahtKey
 
-Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.3 bỏ ký tự tạm gây chọn dư chữ khi ghép dấu; menu bar mở ngay khi nhấn một lần. Giữ icon Finder đã sửa, Ctrl+Shift toàn hệ thống và gõ VNI/Telex trực tiếp trong ô Thay bằng.
+Bộ gõ VNI/Telex cho macOS, viết mới bằng Swift và SwiftUI. Bản 0.3.4 thay chữ bằng Backspace và Unicode, bỏ bôi chọn tổng hợp; menu bar do macOS tự mở và đặt vị trí. Giữ icon Finder đã sửa, Ctrl+Shift toàn hệ thống và gõ VNI/Telex trực tiếp trong ô Thay bằng.
 
 ## Dùng bản đầu
 

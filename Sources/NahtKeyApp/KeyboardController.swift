@@ -22,7 +22,7 @@ final class KeyboardController: ObservableObject {
     private var lastInputPID: pid_t?
     private let ownBundleID = Bundle.main.bundleIdentifier ?? "vn.nahtkey.mac"
     private let eventSource = KeyboardController.makeEventSource()
-    private var useSelectionReplacement = false
+    private var commitSpaceAsText = false
     private var consumedKeys = Set<Int64>()
     private var focusObserver: AXObserver?
     private var focusApplication: AXUIElement?
@@ -275,7 +275,7 @@ final class KeyboardController: ObservableObject {
             engine.reset()
             return pass
         }
-        useSelectionReplacement = ReplacementPlan.usesSelectionReplacement(bundleID: activeApp.bundleIdentifier ?? "")
+        commitSpaceAsText = ReplacementPlan.commitsSpaceAsText(bundleID: activeApp.bundleIdentifier ?? "")
         guard flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty else {
             engine.reset()
             return pass
@@ -293,7 +293,7 @@ final class KeyboardController: ObservableObject {
             let hadWord = !engine.rendered.isEmpty
             let boundary: Character = key == 49 ? " " : (key == 48 ? "\t" : "\n")
             let edit = engine.finish(boundary: boundary)
-            if key == 49 && hadWord && (useSelectionReplacement || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
+            if key == 49 && hadWord && (commitSpaceAsText || edit.deleteCount > 0 || !edit.insertText.isEmpty) {
                 // Own the completed word AND its space as one text transaction.
                 // Do not mix synthetic word replacement with a physical delimiter.
                 post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
@@ -345,19 +345,15 @@ final class KeyboardController: ObservableObject {
 
     private func post(_ edit: TextEdit, proxy: CGEventTapProxy, previousWord: String = "") {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return }
-        let clearCompletion = useSelectionReplacement && edit.deleteCount > 0 && !edit.insertText.isEmpty
+        let clearCompletion = commitSpaceAsText && edit.deleteCount > 0 && !edit.insertText.isEmpty
             && !secureFocus && focusedElement.map {
                 CaretWordReader.hasInlineCompletion(after: previousWord, in: $0)
             } == true
-        for operation in ReplacementPlan.operations(for: edit, useSelection: useSelectionReplacement,
-                                                     clearInlineCompletion: clearCompletion) {
+        for operation in ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion) {
             switch operation {
             case .backspace:
                 postKey(51, down: true, proxy: proxy)
                 postKey(51, down: false, proxy: proxy)
-            case .selectPreviousCharacter:
-                postKey(123, down: true, flags: .maskShift, proxy: proxy)
-                postKey(123, down: false, flags: .maskShift, proxy: proxy)
             case .text(let text):
                 postText(text, proxy: proxy)
             }

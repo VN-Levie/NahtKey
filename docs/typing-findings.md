@@ -86,3 +86,11 @@ Tham khảo cách tách chiến lược trong [VietTelex TerminalTap](https://gi
 Hồi quy gồm hai thứ tự dấu của `chưa/cưa`, `thư`, `ưu`, `đã`, Telex, từ ở đầu ô và sau tiền tố; AppKit thực hiện selection thật trên NSTextView, kèm mô phỏng loại ký tự vô hình. Kiểm tra 100 lượt `chưa cưa ưu bạn bạn ` liên tiếp giữ đủ chữ và Space. Xác nhận bằng bàn phím thật sau cài vẫn cần thiết.
 
 Theo phản hồi người dùng, bỏ nhận nhấn đúp trên menu bar để không chờ `doubleClickInterval`. Nhấn trái/phải mở menu ngay; mở cửa sổ bằng mục **Mở NahtKey…**. Ctrl+Shift và hai trạng thái icon giữ nguyên.
+
+## Phản hồi thực tế và thay đường xuất chữ — 0.3.4
+
+Người dùng xác nhận bản 0.3.3 vẫn lỗi: bôi chọn không thay chữ được, menu hiện mũi tên cuộn và khuất mục đầu. Kết quả kiểm thử selection của bản đó không đại diện cho hành vi editor thực tế.
+
+0.3.4 bỏ hoàn toàn Shift+Left tổng hợp; xóa đúng suffix bằng Backspace rồi chèn Unicode. Không chèn ký tự tạm hoặc cộng thêm một lần xóa cho ký tự giả định. Nhánh xóa vùng gợi ý chỉ dùng khi xác minh được vùng chọn hiện hữu như mô tả trên. Kiểm thử native và mô hình vẫn cần bổ sung bằng xác nhận bàn phím thật, đặc biệt từ đầu ô trống và gõ nhanh.
+
+Menu được gắn trực tiếp bằng `NSStatusItem.menu`, bỏ `NSMenu.popUp` tại tọa độ tự tính. AppKit chịu trách nhiệm đặt menu trong màn hình; không giữ delay hay nhận nhấn đúp.
