@@ -31,6 +31,7 @@ final class DictionaryTransferTests: XCTestCase {
         let source = try store(at: folder.appendingPathComponent("source.json"))
         try source.add(raw: "càu".decomposedStringWithCanonicalMapping, replacement: "của".decomposedStringWithCanonicalMapping)
         try source.add(raw: "abc123", replacement: "đúng")
+        try source.add(raw: "dc", replacement: "địa chỉ đầy đủ")
         let originalEntries = source.entries
         let originalBytes = try Data(contentsOf: source.fileURL)
         let exportedURL = folder.appendingPathComponent("export.json")
@@ -49,7 +50,7 @@ final class DictionaryTransferTests: XCTestCase {
 
         let target = try store(at: folder.appendingPathComponent("target.json"))
         let report = try target.importLibrary(from: exportedURL)
-        XCTAssertEqual(report, DictionaryImportReport(added: 2, updated: 0, unchanged: 0, duplicates: 0, conflicts: 0))
+        XCTAssertEqual(report, DictionaryImportReport(added: 3, updated: 0, unchanged: 0, duplicates: 0, conflicts: 0))
         XCTAssertEqual(target.entries, originalEntries)
         XCTAssertEqual(DictionaryStore(fileURL: target.fileURL).entries, originalEntries)
     }
@@ -135,7 +136,7 @@ final class DictionaryTransferTests: XCTestCase {
         let bytes = try Data(contentsOf: target.fileURL)
         let data = try document([
             CorrectionEntry(raw: "fresh", replacement: "mới"),
-            CorrectionEntry(raw: "càu", replacement: "hai từ"),
+            CorrectionEntry(raw: "càu", replacement: "hai\ntừ"),
             CorrectionEntry(raw: "càu", replacement: "của")
         ])
         XCTAssertThrowsError(try target.importLibrary(data: data))
@@ -148,6 +149,28 @@ final class DictionaryTransferTests: XCTestCase {
             XCTAssertEqual(target.entries, before)
             XCTAssertEqual(try Data(contentsOf: target.fileURL), bytes)
         }
+    }
+
+    @MainActor func testPhraseImportRejectsControlsAtomically() throws {
+        let folder = try directory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let target = try store(at: folder.appendingPathComponent("local.json"), entries: [CorrectionEntry(raw: "local", replacement: "giữ")])
+        let before = target.entries
+        let bytes = try Data(contentsOf: target.fileURL)
+        for replacement in ["một\nhai", "một\u{202E}hai", "một\t hai"] {
+            XCTAssertThrowsError(try target.importLibrary(data: document([
+                CorrectionEntry(raw: "fresh", replacement: replacement),
+                CorrectionEntry(raw: "another", replacement: "hợp lệ")
+            ])))
+            XCTAssertEqual(target.entries, before)
+            XCTAssertEqual(try Data(contentsOf: target.fileURL), bytes)
+        }
+        let report = try target.importLibrary(data: document([
+            CorrectionEntry(raw: "phrase", replacement: "một câu đầy đủ")
+        ]))
+        XCTAssertEqual(report.added, 1)
+        XCTAssertNil(target.corrections(expandPhrases: false)["phrase"])
+        XCTAssertEqual(target.corrections(expandPhrases: true)["phrase"], "một câu đầy đủ")
     }
 
     @MainActor func testFailedAtomicImportDoesNotPublishPartialMergeOrAlterDestination() throws {

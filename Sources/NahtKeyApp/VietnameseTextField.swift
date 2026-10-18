@@ -48,6 +48,8 @@ struct LocalFieldReplacement: Equatable {
 struct VietnameseTextField: NSViewRepresentable {
     @Binding var text: String
     var inputMethod: InputMethod
+    var typingOptions = TypingOptions()
+    var restoreWithEscape = false
     var placeholder: String
     var accessibilityLabel = "Thay bằng"
     var accessibilityIdentifier = "correction-replacement"
@@ -77,22 +79,11 @@ struct VietnameseTextField: NSViewRepresentable {
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
         context.coordinator.updateMethod(inputMethod)
+        context.coordinator.updateOptions(typingOptions)
         field.placeholderString = placeholder
         field.setAccessibilityLabel(accessibilityLabel)
         field.setAccessibilityIdentifier(accessibilityIdentifier)
-        guard field.stringValue != text else { return }
-        context.coordinator.reset()
-        let editor = field.currentEditor() as? NSTextView
-        let selection = editor?.selectedRange()
-        field.stringValue = text
-        if let editor {
-            editor.string = text
-            if let selection, LocalFieldReplacement.characterRange(selection, in: text) != nil {
-                editor.setSelectedRange(selection)
-            } else {
-                editor.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
-            }
-        }
+        context.coordinator.synchronizeText(in: field)
     }
 
     static func dismantleNSView(_ field: NSTextField, coordinator: Coordinator) {
@@ -116,7 +107,7 @@ struct VietnameseTextField: NSViewRepresentable {
 
         init(parent: VietnameseTextField) {
             self.parent = parent
-            engine = VNIEngine(inputMethod: parent.inputMethod)
+            engine = VNIEngine(inputMethod: parent.inputMethod, options: parent.typingOptions)
             super.init()
         }
 
@@ -145,6 +136,31 @@ struct VietnameseTextField: NSViewRepresentable {
             reset()
         }
 
+        func updateOptions(_ options: TypingOptions) {
+            guard engine.options != options else { return }
+            engine.options = options
+            reset()
+        }
+
+        func synchronizeText(in field: NSTextField) {
+            let editor = field.currentEditor() as? NSTextView
+            let text = parent.text
+            // The live field editor can be newer than NSTextField's value. A
+            // redraw of our own keystroke must not erase the captured raw keys.
+            guard (editor?.string ?? field.stringValue) != text else { return }
+            reset()
+            let selection = editor?.selectedRange()
+            field.stringValue = text
+            if let editor {
+                editor.string = text
+                if let selection, LocalFieldReplacement.characterRange(selection, in: text) != nil {
+                    editor.setSelectedRange(selection)
+                } else {
+                    editor.setSelectedRange(NSRange(location: text.utf16.count, length: 0))
+                }
+            }
+        }
+
         func reset() {
             engine.reset()
             expectedText = nil
@@ -160,7 +176,9 @@ struct VietnameseTextField: NSViewRepresentable {
         }
 
         func controlTextDidBeginEditing(_ notification: Notification) {
-            reset()
+            // AppKit may begin editing lazily inside our first insertText call.
+            // That first captured key already belongs to this editing session.
+            if !applying { reset() }
             guard let editor = field?.currentEditor() as? NSTextView else { return }
             restoreEditorOptions()
             configuredEditor = editor
@@ -189,15 +207,10 @@ struct VietnameseTextField: NSViewRepresentable {
             configuredEditor = nil
         }
 
-        private func handle(_ event: NSEvent) -> NSEvent? {
+        func handle(_ event: NSEvent) -> NSEvent? {
             guard let field, let editor = field.currentEditor() as? NSTextView,
                   field.window === event.window, field.window?.firstResponder === editor else { return event }
-            // Native shortcuts, navigation, paste, Backspace, and other input methods
-            // retain their standard editing behavior. Resume from visible text later.
-            guard !editor.hasMarkedText(), event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                  let characters = event.characters, characters.count == 1, let character = characters.first,
-                  let ascii = character.asciiValue,
-                  (65...90).contains(ascii) || (97...122).contains(ascii) || (48...57).contains(ascii) else {
+            guard !editor.hasMarkedText(), event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
                 reset()
                 return event
             }
@@ -208,10 +221,44 @@ struct VietnameseTextField: NSViewRepresentable {
                     engine.resume(word)
                 }
             }
-            let edit = engine.process(character)
-            guard let replacement = LocalFieldReplacement.make(edit: edit, in: editor.string, selection: selection) else {
+            if event.keyCode == 53 {
+                guard parent.restoreWithEscape, let edit = engine.restoreRaw(), apply(edit, in: editor) else {
+                    reset()
+                    return event
+                }
+                return nil
+            }
+            if event.keyCode == 51 {
+                guard selection.length == 0, !engine.rendered.isEmpty else { reset(); return event }
+                return apply(engine.backspace(), in: editor) ? nil : event
+            }
+            if [36, 48, 76].contains(event.keyCode) {
+                let edit = engine.finish()
+                if edit.deleteCount > 0 || !edit.insertText.isEmpty { _ = apply(edit, in: editor) }
+                reset()
+                return event // Return submits; Tab only moves focus.
+            }
+            guard let characters = event.characters, characters.count == 1, let character = characters.first,
+                  let ascii = character.asciiValue else { reset(); return event }
+            let edit: TextEdit
+            if (65...90).contains(ascii) || (97...122).contains(ascii) || (48...57).contains(ascii) {
+                edit = engine.process(character)
+            } else if ascii >= 32 && ascii < 127 {
+                let commit = engine.finish()
+                edit = TextEdit(deleteCount: commit.deleteCount, insertText: commit.insertText + String(character))
+            } else {
                 reset()
                 return event
+            }
+            return apply(edit, in: editor) ? nil : event
+        }
+
+        @discardableResult
+        private func apply(_ edit: TextEdit, in editor: NSTextView) -> Bool {
+            let selection = editor.selectedRange()
+            guard let replacement = LocalFieldReplacement.make(edit: edit, in: editor.string, selection: selection) else {
+                reset()
+                return false
             }
             applying = true
             editor.insertText(replacement.text, replacementRange: replacement.range)
@@ -220,7 +267,7 @@ struct VietnameseTextField: NSViewRepresentable {
             expectedText = editor.string
             expectedSelection = editor.selectedRange()
             if parent.text != editor.string { parent.text = editor.string }
-            return nil
+            return true
         }
     }
 }

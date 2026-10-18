@@ -10,6 +10,7 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
     private let dictionary = DictionaryStore()
     private let keyboard = KeyboardController()
     private let loginItem = LoginItemController()
+    private let navigation = MainWindowNavigation()
     private var dictionaryObservation: AnyCancellable?
     private var mainWindow: NSWindow?
     private var allowsTermination = false
@@ -29,6 +30,11 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
         statusItemController = NativeStatusItemController(
             keyboard: keyboard,
             openWindow: { [weak self] in self?.showMainWindow() },
+            addWord: { [weak self] in
+                guard let self else { return }
+                if !self.dictionary.isReadOnly { self.navigation.addWord() }
+                self.showMainWindow()
+            },
             quit: { [weak self] in self?.quitCompletely() })
         if !background { showMainWindow() }
         // AppKit may issue an initial reopen without retaining the launch event.
@@ -75,7 +81,7 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
     func showMainWindow() {
         NSApp.setActivationPolicy(.accessory)
         if mainWindow == nil {
-            let content = MainView(dictionary: dictionary, keyboard: keyboard, loginItem: loginItem)
+            let content = MainView(dictionary: dictionary, keyboard: keyboard, loginItem: loginItem, navigation: navigation)
             let window = NSWindow(contentViewController: NSHostingController(rootView: content))
             window.title = "NahtKey"
             window.setAccessibilityIdentifier("main")

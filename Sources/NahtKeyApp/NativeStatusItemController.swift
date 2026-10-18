@@ -13,15 +13,17 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
     private let vniItem = NSMenuItem(title: "VNI", action: nil, keyEquivalent: "")
     private let telexItem = NSMenuItem(title: "Telex", action: nil, keyEquivalent: "")
     private let openWindow: () -> Void
+    private let addWord: () -> Void
     private let quit: () -> Void
     private let enabledIcon: NSImage?
     private let disabledIcon: NSImage?
     private var observation: AnyCancellable?
     private var removed = false
 
-    init(keyboard: KeyboardController, openWindow: @escaping () -> Void, quit: @escaping () -> Void) {
+    init(keyboard: KeyboardController, openWindow: @escaping () -> Void, addWord: @escaping () -> Void, quit: @escaping () -> Void) {
         self.keyboard = keyboard
         self.openWindow = openWindow
+        self.addWord = addWord
         self.quit = quit
         let icon = Self.makeIcon()
         enabledIcon = icon
@@ -35,8 +37,8 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
             button.image = enabledIcon
             button.setAccessibilityIdentifier("NahtKeyStatusItem")
         }
-        observation = keyboard.$isEnabled.combineLatest(keyboard.$inputMethod).sink { [weak self] enabled, method in
-            self?.refresh(enabled: enabled, method: method)
+        observation = keyboard.$isEnabled.combineLatest(keyboard.$inputMethod, keyboard.$preferences).sink { [weak self] enabled, method, preferences in
+            self?.refresh(enabled: enabled, method: method, shortcut: preferences.toggleShortcut)
         }
     }
 
@@ -52,7 +54,7 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        refresh(enabled: keyboard.isEnabled, method: keyboard.inputMethod)
+        refresh(enabled: keyboard.isEnabled, method: keyboard.inputMethod, shortcut: keyboard.preferences.toggleShortcut)
     }
 
     @objc private func toggleInput(_ sender: NSMenuItem) { keyboard.toggle() }
@@ -63,6 +65,7 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func showMainWindow(_ sender: NSMenuItem) { openWindow() }
+    @objc private func showAddWord(_ sender: NSMenuItem) { addWord() }
     @objc private func quitApplication(_ sender: NSMenuItem) { quit() }
 
     private func configureMenu() {
@@ -84,6 +87,9 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         methodsItem.submenu = methods
         menu.addItem(methodsItem)
         menu.addItem(.separator())
+        let addItem = NSMenuItem(title: "Thêm từ…", action: #selector(showAddWord(_:)), keyEquivalent: "")
+        addItem.target = self
+        menu.addItem(addItem)
         let openItem = NSMenuItem(title: "Mở NahtKey…", action: #selector(showMainWindow(_:)), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
@@ -93,15 +99,16 @@ final class NativeStatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(quitItem)
     }
 
-    private func refresh(enabled: Bool, method: InputMethod) {
+    private func refresh(enabled: Bool, method: InputMethod, shortcut: ToggleShortcut) {
         toggleItem.state = enabled ? .on : .off
+        toggleItem.title = shortcut == .disabled ? "Bật bộ gõ" : "Bật bộ gõ (\(shortcut.displayName))"
         vniItem.state = method == .vni ? .on : .off
         telexItem.state = method == .telex ? .on : .off
         statusItem.button?.image = enabled ? enabledIcon : disabledIcon
         statusItem.button?.appearsDisabled = false
         let status = "NahtKey, \(method.displayName), \(enabled ? "đang bật" : "đang tắt")"
         statusItem.button?.setAccessibilityLabel(status)
-        statusItem.button?.toolTip = "\(status)\nCtrl + Shift: bật/tắt. Bấm để mở menu."
+        statusItem.button?.toolTip = "\(status)\n\(shortcut.displayName). Bấm để mở menu."
     }
 
     private static func makeDisabledIcon(from base: NSImage?) -> NSImage? {

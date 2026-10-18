@@ -148,9 +148,37 @@ final class DictionaryStoreTests: XCTestCase {
         let before = store.entries
         XCTAssertThrowsError(try store.add(raw: "abn5", replacement: "khác"))
         XCTAssertThrowsError(try store.add(raw: "a b", replacement: "bạn"))
-        XCTAssertThrowsError(try store.add(raw: "valid", replacement: "hai từ"))
+        XCTAssertThrowsError(try store.add(raw: "valid", replacement: "hai\ntừ"))
         XCTAssertThrowsError(try store.add(raw: "valid", replacement: "\n"))
         XCTAssertEqual(store.entries, before)
+    }
+
+    @MainActor func testPhraseReplacementPersistsAndCanBeFilteredAsAnOption() throws {
+        let url = temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = DictionaryStore(fileURL: url)
+        try store.add(raw: "dc", replacement: "địa chỉ đầy đủ")
+        try store.add(raw: "emoji", replacement: "🙂!")
+
+        XCTAssertEqual(store.corrections["dc"], "địa chỉ đầy đủ")
+        XCTAssertNil(store.corrections(expandPhrases: false)["dc"])
+        XCTAssertEqual(store.corrections(expandPhrases: false)["emoji"], "🙂!")
+        XCTAssertEqual(store.corrections(expandPhrases: true)["dc"], "địa chỉ đầy đủ")
+
+        let reloaded = DictionaryStore(fileURL: url)
+        XCTAssertEqual(reloaded.corrections["dc"], "địa chỉ đầy đủ")
+        XCTAssertNil(reloaded.corrections(expandPhrases: false)["dc"])
+    }
+
+    @MainActor func testPhraseWhitespaceBoundariesAndUnsafeControlsAreRejected() throws {
+        let url = temporaryURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let store = DictionaryStore(fileURL: url)
+        for invalid in ["", " ", " hai", "hai ", "hai\t từ", "hai\n từ", "hai\u{202E}từ", "hai\u{200F}từ"] {
+            XCTAssertThrowsError(try store.add(raw: "valid\(invalid.count)", replacement: invalid), "Unexpected valid replacement: \(invalid.debugDescription)")
+        }
+        try store.add(raw: "validspace", replacement: "hai từ, nhé!")
+        XCTAssertEqual(store.corrections["validspace"], "hai từ, nhé!")
     }
 
     @MainActor func testCorruptFileIsPreservedAndCannotBeOverwritten() throws {

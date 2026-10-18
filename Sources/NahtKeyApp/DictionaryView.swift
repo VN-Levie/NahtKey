@@ -5,18 +5,14 @@ import NahtKeyCore
 
 struct DictionaryView: View {
     @ObservedObject var store: DictionaryStore
+    @ObservedObject var navigation: MainWindowNavigation
     var inputMethod: InputMethod = .vni
+    var preferences = KeyboardPreferences()
     @State private var query = ""
     @State private var selection: UUID?
-    @State private var editor: EditorTarget?
     @State private var deletion: CorrectionEntry?
     @State private var transferMessage: String?
     @State private var transferFailed = false
-
-    private struct EditorTarget: Identifiable {
-        let id = UUID()
-        let entry: CorrectionEntry?
-    }
 
     private var filteredEntries: [CorrectionEntry] {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -52,7 +48,7 @@ struct DictionaryView: View {
                 .disabled(store.isReadOnly)
                 .accessibilityIdentifier("export-library")
                 Button {
-                    editor = EditorTarget(entry: nil)
+                    navigation.addWord()
                 } label: {
                     Label("Thêm từ", systemImage: "plus")
                 }
@@ -158,8 +154,8 @@ struct DictionaryView: View {
             }
         }
         .padding(24)
-        .sheet(item: $editor) { target in
-            CorrectionEditor(store: store, entry: target.entry, inputMethod: inputMethod)
+        .sheet(item: $navigation.editor) { target in
+            CorrectionEditor(store: store, entry: target.entry, inputMethod: inputMethod, preferences: preferences)
         }
         .confirmationDialog("Xóa quy tắc này?", isPresented: Binding(
             get: { deletion != nil },
@@ -245,7 +241,7 @@ struct DictionaryView: View {
     private func edit(_ entry: CorrectionEntry) {
         guard !store.isReadOnly else { return }
         selection = entry.id
-        editor = EditorTarget(entry: entry)
+        navigation.editor = CorrectionEditorTarget(entry: entry)
     }
 }
 
@@ -253,15 +249,17 @@ private struct CorrectionEditor: View {
     @ObservedObject var store: DictionaryStore
     let entry: CorrectionEntry?
     let inputMethod: InputMethod
+    let preferences: KeyboardPreferences
     @Environment(\.dismiss) private var dismiss
     @State private var raw: String
     @State private var replacement: String
     @State private var validationMessage: String?
 
-    init(store: DictionaryStore, entry: CorrectionEntry?, inputMethod: InputMethod) {
+    init(store: DictionaryStore, entry: CorrectionEntry?, inputMethod: InputMethod, preferences: KeyboardPreferences) {
         self.store = store
         self.entry = entry
         self.inputMethod = inputMethod
+        self.preferences = preferences
         _raw = State(initialValue: entry?.raw ?? "")
         _replacement = State(initialValue: entry?.replacement ?? "")
     }
@@ -274,6 +272,7 @@ private struct CorrectionEditor: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text("Chuỗi gõ hoặc từ cần sửa").font(.headline)
                 VietnameseTextField(text: $raw, inputMethod: inputMethod,
+                                    typingOptions: preferences.typing, restoreWithEscape: preferences.restoreWithEscape,
                                     placeholder: "Ví dụ: abn5 hoặc càu",
                                     accessibilityLabel: "Chuỗi gõ hoặc từ cần sửa",
                                     accessibilityIdentifier: "correction-raw", onSubmit: save)
@@ -286,11 +285,16 @@ private struct CorrectionEditor: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text("Thay bằng").font(.headline)
                 VietnameseTextField(text: $replacement, inputMethod: inputMethod,
+                                    typingOptions: preferences.typing, restoreWithEscape: preferences.restoreWithEscape,
                                     placeholder: "Ví dụ: bạn hoặc của", onSubmit: save)
                     .frame(height: 22)
-                Text("Gõ \(inputMethod.displayName) tại đây. Một từ, không có khoảng trắng.")
+                Text("Gõ \(inputMethod.displayName). Tối đa 128 ký tự; cho phép cụm từ, không xuống dòng.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !preferences.expandPhrases {
+                    Text("Bật “Gõ tắt thành cụm từ hoặc câu” trong Tùy chọn để dùng mục có khoảng trắng.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             if let message = validationMessage {

@@ -13,8 +13,10 @@ final class KeyboardController: ObservableObject {
     @Published private(set) var otherInputApps: [String] = []
     @Published private(set) var errorMessage: String?
     @Published private(set) var inputMethod: InputMethod = .vni
+    @Published private(set) var preferences: KeyboardPreferences
 
     private let engine = TypingSession()
+    private var allCorrections: [String: String] = [:]
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var permissionTimer: Timer?
@@ -29,11 +31,17 @@ final class KeyboardController: ObservableObject {
     private var focusedElement: AXUIElement?
     private var secureFocus = false
     private var wantsEnabled = true
+    private var applicationState: ApplicationTypingState
     private var toggleGesture = ModifierToggleState()
     private static let eventMarker: Int64 = 0x4E4148544B4559
 
     init() {
-        wantsEnabled = UserDefaults.standard.object(forKey: "typingEnabled") as? Bool ?? true
+        preferences = KeyboardPreferences.load(from: .standard)
+        applicationState = ApplicationTypingState(
+            globalEnabled: UserDefaults.standard.object(forKey: "typingEnabled") as? Bool ?? true,
+            applications: UserDefaults.standard.dictionary(forKey: "applicationTypingEnabled") as? [String: Bool] ?? [:])
+        engine.options = preferences.typing
+        wantsEnabled = applicationState.globalEnabled
         inputMethod = InputMethod(rawValue: UserDefaults.standard.string(forKey: "inputMethod") ?? "vni") ?? .vni
         engine.inputMethod = inputMethod
         refreshEnvironment()
@@ -52,8 +60,35 @@ final class KeyboardController: ObservableObject {
     }
 
     func updateCorrections(_ corrections: [String: String]) {
+        allCorrections = corrections
         engine.reset()
-        engine.corrections = corrections
+        engine.corrections = DictionaryStore.activeCorrections(corrections, expandPhrases: preferences.expandPhrases)
+    }
+
+    func updatePreferences(_ change: (inout KeyboardPreferences) -> Void) {
+        var updated = preferences
+        change(&updated)
+        guard updated != preferences else { return }
+        preferences = updated
+        updated.save(to: .standard)
+        engine.options = updated.typing
+        engine.corrections = DictionaryStore.activeCorrections(allCorrections, expandPhrases: updated.expandPhrases)
+        engine.reset()
+        toggleGesture.reset()
+        applyDesiredEnabledState()
+    }
+
+    func clearApplicationPreferences() {
+        applicationState.clearApplications()
+        UserDefaults.standard.removeObject(forKey: "applicationTypingEnabled")
+        applyDesiredEnabledState()
+    }
+
+    private func applyDesiredEnabledState() {
+        let desired = applicationState.desiredEnabled(rememberPerApplication: preferences.rememberPerApplication)
+        wantsEnabled = desired
+        guard desired != isEnabled else { return }
+        if desired { start(refresh: false) } else { stop() }
     }
 
     func refreshEnvironment() {
@@ -89,8 +124,10 @@ final class KeyboardController: ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool) {
+        applicationState.setEnabled(enabled, rememberPerApplication: preferences.rememberPerApplication)
+        UserDefaults.standard.set(applicationState.globalEnabled, forKey: "typingEnabled")
+        UserDefaults.standard.set(applicationState.applications, forKey: "applicationTypingEnabled")
         wantsEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "typingEnabled")
         if enabled { start() } else { stop() }
     }
 
@@ -119,6 +156,8 @@ final class KeyboardController: ObservableObject {
             engine.reset()
             lastInputPID = app?.processIdentifier
             watchFocus(of: app)
+            applicationState.activate(app?.bundleIdentifier, ownBundleID: ownBundleID)
+            applyDesiredEnabledState()
         }
         return app
     }
@@ -254,7 +293,7 @@ final class KeyboardController: ObservableObject {
     private func handleInput(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let pass = Unmanaged.passUnretained(event)
         if type == .flagsChanged {
-            if toggleGesture.flagsChanged(event.flags) {
+            if toggleGesture.flagsChanged(event.flags, shortcut: preferences.toggleShortcut) {
                 engine.reset()
                 toggle()
             }
@@ -264,11 +303,11 @@ final class KeyboardController: ObservableObject {
             // not require an extra failed Ctrl+Shift before the next toggle.
             toggleGesture.usedOtherInput(flags: event.flags)
         }
+        let activeApp = type == .keyDown ? currentInputApplication() : nil
         guard isEnabled else { return pass }
         let key = event.getIntegerValueField(.keyboardEventKeycode)
         // Refresh process/focus before consulting secureFocus, which belongs to
         // the previously watched application until this transition is handled.
-        let activeApp = type == .keyDown ? currentInputApplication() : nil
         // Password entry is owned by macOS; discard any partially composed word.
         guard !IsSecureEventInputEnabled(), !secureFocus else { engine.reset(); return pass }
         if type == .leftMouseDown || type == .rightMouseDown || type == .leftMouseDragged || type == .rightMouseDragged {
@@ -312,6 +351,13 @@ final class KeyboardController: ObservableObject {
             if !post(edit, proxy: proxy, previousWord: previousWord) { engine.reset() }
             if key != 49 { engine.reset() } // Return/Tab may submit or move to another field.
             return pass
+        }
+        if key == 53, preferences.restoreWithEscape {
+            let previousWord = engine.rendered
+            if let edit = engine.restoreRaw() {
+                guard post(edit, proxy: proxy, previousWord: previousWord) else { engine.reset(); return pass }
+                return nil
+            }
         }
         if [53, 115, 116, 117, 119, 121, 123, 124, 125, 126].contains(key) {
             engine.reset()

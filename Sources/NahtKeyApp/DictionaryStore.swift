@@ -27,6 +27,17 @@ final class DictionaryStore: ObservableObject {
         Dictionary(uniqueKeysWithValues: entries.map { ($0.raw, $0.replacement) })
     }
 
+    /// Returns the corrections that should be active for the selected mode.
+    /// Phrase replacements stay in the library/export even when expansion is off.
+    static func activeCorrections(_ corrections: [String: String], expandPhrases: Bool) -> [String: String] {
+        guard !expandPhrases else { return corrections }
+        return corrections.filter { !isPhraseReplacement($0.value) }
+    }
+
+    func corrections(expandPhrases: Bool) -> [String: String] {
+        Self.activeCorrections(corrections, expandPhrases: expandPhrases)
+    }
+
     private struct Document: Codable {
         let version: Int
         let entries: [CorrectionEntry]
@@ -42,7 +53,7 @@ final class DictionaryStore: ObservableObject {
             case .invalidRaw:
                 return "Chuỗi gõ hoặc từ cần sửa phải có 1–64 chữ cái (có thể có dấu) hoặc chữ số, không có khoảng trắng hay dấu câu."
             case .invalidReplacement:
-                return "Từ thay thế cần từ 1–128 ký tự, không có khoảng trắng hoặc ký tự điều khiển."
+                return "Nội dung thay thế cần từ 1–128 ký tự; có thể có khoảng trắng giữa câu nhưng không được có khoảng trắng đầu/cuối, xuống dòng, tab hoặc ký tự điều khiển."
             case .duplicateRaw:
                 return "Chuỗi gõ hoặc từ này đã có trong thư viện. Hãy sửa mục hiện có."
             case .entryMissing:
@@ -218,9 +229,28 @@ final class DictionaryStore: ObservableObject {
     }
 
     private static func validateReplacement(_ value: String) throws {
-        let forbidden = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
-        guard (1...128).contains(value.count), !value.unicodeScalars.contains(where: forbidden.contains) else {
+        guard (1...128).contains(value.count),
+              value.first != " ", value.last != " ",
+              !value.unicodeScalars.contains(where: { scalar in
+                  if CharacterSet.controlCharacters.contains(scalar) { return true }
+                  if CharacterSet.whitespacesAndNewlines.contains(scalar) && scalar.value != 0x20 { return true }
+                  return isBidiControl(scalar)
+              }) else {
             throw StoreError.invalidReplacement
+        }
+    }
+
+    private static func isPhraseReplacement(_ value: String) -> Bool {
+        value.unicodeScalars.contains { $0.value == 0x20 }
+    }
+
+    private static func isBidiControl(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x061C, 0x200E, 0x200F, 0x202A...0x202E, 0x2060...0x2064, 0x2066...0x2069,
+             0x206A...0x206F:
+            return true
+        default:
+            return false
         }
     }
 

@@ -19,6 +19,7 @@ struct MainView: View {
     @ObservedObject var dictionary: DictionaryStore
     @ObservedObject var keyboard: KeyboardController
     @ObservedObject var loginItem: LoginItemController
+    @ObservedObject var navigation: MainWindowNavigation
 
     private let brandImage = Bundle.main.url(forResource: "NahtKeyIcon", withExtension: "png")
         .flatMap { NSImage(contentsOf: $0) } ?? NSImage(named: "NahtKeyIcon")
@@ -79,16 +80,20 @@ struct MainView: View {
             }
             .padding(20)
             Divider()
-            TabView {
-                DictionaryView(store: dictionary, inputMethod: keyboard.inputMethod).tabItem { Label("Từ cá nhân", systemImage: "text.book.closed") }
-                TypingLabView(store: dictionary, inputMethod: keyboard.inputMethod)
+            TabView(selection: $navigation.selectedTab) {
+                DictionaryView(store: dictionary, navigation: navigation, inputMethod: keyboard.inputMethod, preferences: keyboard.preferences)
+                    .tabItem { Label("Từ cá nhân", systemImage: "text.book.closed") }.tag(MainTab.dictionary)
+                TypingLabView(store: dictionary, inputMethod: keyboard.inputMethod, preferences: keyboard.preferences)
                     .tabItem { Label("Thử gõ", systemImage: "keyboard") }
+                    .tag(MainTab.lab)
+                TypingSettingsView(keyboard: keyboard)
+                    .tabItem { Label("Tùy chọn", systemImage: "slider.horizontal.3") }.tag(MainTab.settings)
             }
             .padding(14)
             HStack {
                 Text("\(keyboard.inputMethod.displayName) · Unicode").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Text("Ctrl + Shift: bật/tắt · Bấm biểu tượng để mở menu.")
+                Text("\(keyboard.preferences.toggleShortcut.displayName) · Bấm biểu tượng để mở menu.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(.horizontal, 20).padding(.bottom, 12)
         }

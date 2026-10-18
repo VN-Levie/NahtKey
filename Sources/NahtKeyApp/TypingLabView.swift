@@ -4,11 +4,12 @@ import NahtKeyCore
 struct TypingLabView: View {
     @ObservedObject var store: DictionaryStore
     var inputMethod: InputMethod = .vni
+    var preferences = KeyboardPreferences()
     @State private var input = ""
     @FocusState private var isInputFocused: Bool
 
     private var preview: String {
-        let engine = VNIEngine(corrections: store.corrections, inputMethod: inputMethod)
+        let engine = VNIEngine(corrections: store.corrections(expandPhrases: preferences.expandPhrases), inputMethod: inputMethod, options: preferences.typing)
         var output = ""
         func apply(_ edit: TextEdit) {
             output.removeLast(min(edit.deleteCount, output.count))
