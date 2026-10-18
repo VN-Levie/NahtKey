@@ -56,7 +56,7 @@ enum VietnameseSyllablePrefix {
     /// Completed lowercase text, with tones removed but vowel shapes retained.
     /// Only English restoration uses this stricter check; the live VNI guard
     /// remains permissive to allow late modifiers and partial syllables.
-    static func acceptsCompleted(_ letters: [Character]) -> Bool {
+    static func acceptsCompleted(_ letters: [Character], tone: Int) -> Bool {
         if letters == ["đ"] { return true }
         if letters.count == 2, letters[0] == "d" || letters[0] == "đ",
            dAbbreviationFinals.contains(letters[1]) { return true }
@@ -64,7 +64,12 @@ enum VietnameseSyllablePrefix {
             var index = onset.count
             while index < letters.count, shapedVowels.contains(letters[index]) { index += 1 }
             guard nuclei.contains(String(letters[onset.count..<index])) else { continue }
-            if codas.contains(Array(letters[index...])) { return true }
+            let final = Array(letters[index...])
+            guard codas.contains(final) else { continue }
+            // Stop finals only admit sắc/nặng. Without this check English
+            // text/next/sort can be mistaken for Vietnamese tẽt/nẽt/sỏt.
+            if ["c", "ch", "p", "t"].contains(String(final)), tone != 1 && tone != 5 { continue }
+            return true
         }
         return false
     }

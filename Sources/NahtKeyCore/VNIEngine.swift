@@ -116,8 +116,12 @@ public final class VNIEngine {
 
     private func shouldRestoreEnglish() -> Bool {
         guard options.restoreEnglishTelex, inputMethod == .telex, mayCorrectRaw,
-              !passesThroughLongToken, !keepsLiteralToken, !lastKeyEscapedModifier,
+              !passesThroughLongToken, !keepsLiteralToken,
               raw != rendered, raw.allSatisfy(\.isASCII) else { return false }
+        // Repeating a modifier after a Vietnamese prefix is an explicit escape
+        // (ass -> as). An impossible prefix such as cla in class has no
+        // Vietnamese composition to escape and should restore the English word.
+        if lastKeyEscapedModifier && Self.isPossibleVietnamesePrefix(Array(characters.dropLast())) { return false }
         let untoned = characters.flatMap { character -> [Character] in
             if var vowel = Self.vowels[character] {
                 vowel.tone = 0
@@ -127,7 +131,8 @@ public final class VNIEngine {
         }
         // Valid Vietnamese-shaped syllables are intentionally ambiguous: test
         // is also the Telex spelling of tét. Manual restore resolves that case.
-        return !VietnameseSyllablePrefix.acceptsCompleted(untoned)
+        let tone = characters.compactMap { Self.vowels[$0]?.tone }.first(where: { $0 != 0 }) ?? 0
+        return !VietnameseSyllablePrefix.acceptsCompleted(untoned, tone: tone)
     }
 
     private func personalReplacement() -> String? {

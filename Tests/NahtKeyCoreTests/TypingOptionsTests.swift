@@ -61,6 +61,31 @@ final class TypingOptionsTests: XCTestCase {
         XCTAssertEqual(visible, "tiếngViệt")
     }
 
+    func testEnglishDevelopmentWordsRestoreAtBoundary() {
+        for keys in ["push", "fix", "release", "user", "use", "office", "error", "return", "string",
+                     "struct", "export", "import", "await", "while", "else", "class", "switch", "break",
+                     "throw", "debug", "build", "deploy", "commit", "merge", "github", "browser",
+                     "press", "stress", "process", "address", "success",
+                     "request", "response", "useEffect", "JavaScript", "text", "next", "sort", "port",
+                     "PUSH", "Fix", "Release", "Text", "NEXT", "Sort"] {
+            let engine = VNIEngine(inputMethod: .telex, options: .init(restoreEnglishTelex: true))
+            var visible = type(keys, into: engine)
+            apply(engine.finish(), to: &visible)
+            XCTAssertEqual(visible, keys, keys)
+        }
+    }
+
+    func testStopFinalValidationPreservesVietnameseAndExplicitAmbiguity() {
+        for (keys, expected) in ["tets": "tét", "netj": "nẹt", "boojt": "bột", "chachs": "chách",
+                                 "hojc": "học", "cuopsw": "cướp", "test": "tét", "car": "cả",
+                                 "var": "vả", "ddc": "đc"] {
+            let engine = VNIEngine(inputMethod: .telex, options: .init(restoreEnglishTelex: true))
+            var visible = type(keys, into: engine)
+            apply(engine.finish(), to: &visible)
+            XCTAssertEqual(visible, expected, keys)
+        }
+    }
+
 
     func testBackspaceNormalizationCanBeDisabled() {
         for (method, keys, expected) in [
