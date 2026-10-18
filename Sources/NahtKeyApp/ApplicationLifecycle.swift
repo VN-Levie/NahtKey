@@ -15,6 +15,8 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
     private var mainWindow: NSWindow?
     private var allowsTermination = false
     private var acceptsUserReopen = false
+    private var finishedLaunching = false
+    private var pendingWindowRequest = false
     private var statusItemController: NativeStatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -36,7 +38,9 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
                 self.showMainWindow()
             },
             quit: { [weak self] in self?.quitCompletely() })
-        if !background { showMainWindow() }
+        finishedLaunching = true
+        if !background || pendingWindowRequest { showMainWindow() }
+        pendingWindowRequest = false
         // AppKit may issue an initial reopen without retaining the launch event.
         // Ignore that launch turn; later explicit opens can still show the window.
         DispatchQueue.main.async { [weak self] in self?.acceptsUserReopen = true }
@@ -76,6 +80,11 @@ final class ApplicationLifecycle: NSObject, NSApplicationDelegate, NSWindowDeleg
     func hideToMenuBar() {
         // Preserve sheets and unsaved fields when hiding the window.
         NSApp.hide(nil)
+    }
+
+    func requestMainWindow() {
+        guard finishedLaunching else { pendingWindowRequest = true; return }
+        showMainWindow()
     }
 
     func showMainWindow() {

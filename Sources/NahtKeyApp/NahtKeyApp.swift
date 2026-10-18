@@ -7,11 +7,29 @@ enum NahtKeyApp {
     @MainActor static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
-        let lifecycle = ApplicationLifecycle()
-        app.delegate = lifecycle
-        // SwiftUI renders only an explicitly opened window; no default Window
-        // scene can flash at login, including on our macOS 14 deployment target.
-        withExtendedLifetime(lifecycle) { app.run() }
+        let instance = SingleInstanceCoordinator()
+        do { try instance.acquire() }
+        catch {
+            // Fail closed: inability to establish ownership must not create a
+            // second event tap. No application services have been initialized.
+            let alert = NSAlert()
+            alert.messageText = "Không thể khởi động NahtKey"
+            alert.informativeText = "Không thể kiểm tra phiên đang chạy. Hãy kiểm tra quyền truy cập thư mục dữ liệu NahtKey rồi mở lại."
+            alert.runModal()
+            return
+        }
+        if instance.isPrimary {
+            let lifecycle = ApplicationLifecycle()
+            instance.handleReopen { [weak lifecycle] in lifecycle?.requestMainWindow() }
+            app.delegate = lifecycle
+            // SwiftUI renders only an explicitly opened window; no default
+            // Window scene can flash at login.
+            withExtendedLifetime((instance, lifecycle)) { app.run() }
+        } else {
+            let lifecycle = DuplicateInstanceLifecycle(instance: instance)
+            app.delegate = lifecycle
+            withExtendedLifetime((instance, lifecycle)) { app.run() }
+        }
     }
 }
 
