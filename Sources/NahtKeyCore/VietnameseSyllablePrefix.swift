@@ -37,4 +37,36 @@ enum VietnameseSyllablePrefix {
         }
         return false
     }
+
+    // A permissive set of vowel groups, not a word dictionary. Shapes matter:
+    // uê occurs in Vietnamese, while the plain ue in user -> ủe does not.
+    // This intentionally allows a few unfinished groups (ie, uo, uơ) so the
+    // optional English guard does not become strict spelling correction.
+    private static let nuclei: Set<String> = [
+        "a", "ă", "â", "e", "ê", "i", "o", "ô", "ơ", "u", "ư", "y",
+        "ai", "ao", "au", "ay", "âu", "ây", "eo", "êu", "ia", "ie", "iê", "iu",
+        "oa", "oă", "oe", "oi", "oo", "ôi", "ơi",
+        "ua", "uâ", "uê", "ui", "uo", "uô", "uơ", "uu", "uy",
+        "ưa", "ưi", "ưu", "ươ", "ya", "ye", "yê",
+        "iêu", "yêu", "oai", "oao", "oay", "oeo", "uai", "uao", "uay", "uây",
+        "uoi", "uou", "uôi", "uơi", "uêu", "uya", "uyê", "uyu", "ươi", "ươu"
+    ]
+    private static let shapedVowels = Set("aăâeêioôơuưy")
+
+    /// Completed lowercase text, with tones removed but vowel shapes retained.
+    /// Only English restoration uses this stricter check; the live VNI guard
+    /// remains permissive to allow late modifiers and partial syllables.
+    static func acceptsCompleted(_ letters: [Character]) -> Bool {
+        if letters == ["đ"] { return true }
+        if letters.count == 2, letters[0] == "d" || letters[0] == "đ",
+           dAbbreviationFinals.contains(letters[1]) { return true }
+        for onset in onsets where letters.starts(with: onset) {
+            var index = onset.count
+            while index < letters.count, shapedVowels.contains(letters[index]) { index += 1 }
+            guard nuclei.contains(String(letters[onset.count..<index])) else { continue }
+            if codas.contains(Array(letters[index...])) { return true }
+        }
+        return false
+    }
+
 }

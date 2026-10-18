@@ -29,6 +29,11 @@ public final class VNIEngine {
             if inputMethod != oldValue { reset() }
         }
     }
+    public var options: TypingOptions {
+        didSet {
+            if options != oldValue { reset() }
+        }
+    }
     public private(set) var raw = ""
     public private(set) var rendered = ""
 
@@ -39,10 +44,13 @@ public final class VNIEngine {
     private var previousKey: Character?
     private var capturedKeyCount = 0
     private var vniIsLiteral = false
+    private var keepsLiteralToken = false
+    private var lastKeyEscapedModifier = false
 
-    public init(corrections: [String: String] = [:], inputMethod: InputMethod = .vni) {
+    public init(corrections: [String: String] = [:], inputMethod: InputMethod = .vni, options: TypingOptions = .init()) {
         self.corrections = corrections
         self.inputMethod = inputMethod
+        self.options = options
     }
 
     public func process(_ character: Character) -> TextEdit {
@@ -62,10 +70,21 @@ public final class VNIEngine {
         capturedKeyCount += 1
         // Apply just the new key. Replaying every raw key here was quadratic and
         // needlessly repeated tone scans inside the system's keyboard callback.
-        if inputMethod == .vni, vniIsLiteral {
+        if keepsLiteralToken || (inputMethod == .vni && vniIsLiteral) {
             characters.append(character)
         } else {
-            let appliedModifier = Self.compose(character, previousKey: previousKey, method: inputMethod, into: &characters)
+            let appliedModifier = Self.compose(character, previousKey: previousKey, method: inputMethod, tonePlacement: options.tonePlacement, into: &characters)
+            // A terminal repeated modifier explicitly requests the escaped text.
+            // Earlier repetitions inside an English token (office) may restore.
+            lastKeyEscapedModifier = appliedModifier && characters.last == character
+            if options.restoreEnglishTelex, inputMethod == .telex, mayCorrectRaw, !appliedModifier,
+               character.isUppercase, raw.dropLast().last?.isLowercase == true,
+               raw.contains(where: { !$0.isASCII }) {
+                // Already-composed Vietnamese can contain a new mixed-case word
+                // (tiếngViệt). Keep its original Unicode tones and later letters.
+                characters = Array(raw)
+                keepsLiteralToken = true
+            }
             if inputMethod == .vni, !Self.isPossibleVietnamesePrefix(characters) {
                 // A repeated modifier intentionally escapes a literal digit
                 // (a11 -> a1). Keep that result; otherwise an impossible prefix
@@ -86,11 +105,29 @@ public final class VNIEngine {
         let result: TextEdit
         if let replacement = personalReplacement() {
             result = Self.edit(from: rendered, to: replacement)
+        } else if shouldRestoreEnglish() {
+            result = Self.edit(from: rendered, to: raw)
         } else {
             result = TextEdit(deleteCount: 0, insertText: "")
         }
         reset()
         return result
+    }
+
+    private func shouldRestoreEnglish() -> Bool {
+        guard options.restoreEnglishTelex, inputMethod == .telex, mayCorrectRaw,
+              !passesThroughLongToken, !keepsLiteralToken, !lastKeyEscapedModifier,
+              raw != rendered, raw.allSatisfy(\.isASCII) else { return false }
+        let untoned = characters.flatMap { character -> [Character] in
+            if var vowel = Self.vowels[character] {
+                vowel.tone = 0
+                return Array(String(vowel.character).lowercased())
+            }
+            return Array(String(character).lowercased())
+        }
+        // Valid Vietnamese-shaped syllables are intentionally ambiguous: test
+        // is also the Telex spelling of tét. Manual restore resolves that case.
+        return !VietnameseSyllablePrefix.acceptsCompleted(untoned)
     }
 
     private func personalReplacement() -> String? {
@@ -113,13 +150,33 @@ public final class VNIEngine {
         guard !rendered.isEmpty else {
             return TextEdit(deleteCount: 1, insertText: "")
         }
-        rendered.removeLast()
+        let previous = rendered
         characters.removeLast()
+        if options.normalizeToneOnBackspace, !keepsLiteralToken, Self.isPossibleVietnamesePrefix(characters),
+           characters.compactMap({ Self.vowels[$0]?.tone }).filter({ $0 != 0 }).count == 1 {
+            Self.relocateTone(in: &characters, tonePlacement: options.tonePlacement)
+        }
+        rendered = String(characters)
         raw = rendered
         capturedKeyCount = characters.count
         previousKey = nil
         vniIsLiteral = inputMethod == .vni && !Self.isPossibleVietnamesePrefix(characters)
-        return TextEdit(deleteCount: 1, insertText: "")
+        return Self.edit(from: previous, to: rendered)
+    }
+
+    /// Restore exact captured keystrokes once, then keep this token literal.
+    /// Backspace and resumed visible words no longer have trustworthy raw input.
+    public func restoreRaw() -> TextEdit? {
+        guard mayCorrectRaw, !passesThroughLongToken, !raw.isEmpty, raw != rendered else { return nil }
+        let edit = Self.edit(from: rendered, to: raw)
+        rendered = raw
+        characters = Array(raw)
+        previousKey = nil
+        keepsLiteralToken = true
+        // The user explicitly chose raw input; do not expand an alias again
+        // when this token ends, including after more literal input is appended.
+        mayCorrectRaw = false
+        return edit
     }
 
     /// Resume a known visible word after a delimiter was removed or the host
@@ -147,6 +204,8 @@ public final class VNIEngine {
         previousKey = nil
         capturedKeyCount = 0
         vniIsLiteral = false
+        keepsLiteralToken = false
+        lastKeyEscapedModifier = false
     }
 
     private static func edit(from old: String, to new: String) -> TextEdit {
@@ -211,18 +270,18 @@ public final class VNIEngine {
     }
 
     @discardableResult
-    private static func compose(_ key: Character, previousKey: Character?, method: InputMethod, into text: inout [Character]) -> Bool {
+    private static func compose(_ key: Character, previousKey: Character?, method: InputMethod, tonePlacement: TonePlacement, into text: inout [Character]) -> Bool {
         switch method {
         case .vni:
             if let digit = key.wholeNumberValue, key.isASCII,
-               apply(digit: digit, previousKey: previousKey, to: &text) { return true }
+               apply(digit: digit, previousKey: previousKey, tonePlacement: tonePlacement, to: &text) { return true }
         case .telex:
-            if applyTelex(key, previousKey: previousKey, to: &text) { return true }
+            if applyTelex(key, previousKey: previousKey, tonePlacement: tonePlacement, to: &text) { return true }
         }
         text.append(key)
         if key.isLetter {
             harmonizeHorns(in: &text)
-            relocateTone(in: &text)
+            relocateTone(in: &text, tonePlacement: tonePlacement)
         }
         return false
     }
@@ -235,12 +294,12 @@ public final class VNIEngine {
         return start..<text.count
     }
 
-    private static func apply(digit: Int, previousKey: Character?, to text: inout [Character]) -> Bool {
+    private static func apply(digit: Int, previousKey: Character?, tonePlacement: TonePlacement, to text: inout [Character]) -> Bool {
         let range = letterRange(in: text)
         guard !range.isEmpty else { return false }
         let repeatsKey = previousKey == Character(String(digit))
         if (1...5).contains(digit) {
-            return applyTone(digit, escapeKey: Character(String(digit)), repeatsKey: repeatsKey, to: &text)
+            return applyTone(digit, escapeKey: Character(String(digit)), repeatsKey: repeatsKey, tonePlacement: tonePlacement, to: &text)
         }
 
         if digit == 9 {
@@ -263,16 +322,16 @@ public final class VNIEngine {
             vowels[text[$0]].map { eligible.contains($0.base) } ?? false
         }) else { return false }
         if digit == 7 { target = hornTarget(target, in: text, range: range) }
-        return applyShape(desired, target: target, escapeKey: Character(String(digit)), repeatsKey: repeatsKey, to: &text)
+        return applyShape(desired, target: target, escapeKey: Character(String(digit)), repeatsKey: repeatsKey, tonePlacement: tonePlacement, to: &text)
     }
 
-    private static func applyTelex(_ key: Character, previousKey: Character?, to text: inout [Character]) -> Bool {
+    private static func applyTelex(_ key: Character, previousKey: Character?, tonePlacement: TonePlacement, to text: inout [Character]) -> Bool {
         guard key.isASCII else { return false }
         let lower = Character(String(key).lowercased())
         let repeatsKey = previousKey.map { String($0).lowercased() == String(lower) } ?? false
         let tones: [Character: Int] = ["s": 1, "f": 2, "r": 3, "x": 4, "j": 5]
         if let tone = tones[lower] {
-            return applyTone(tone, escapeKey: key, repeatsKey: repeatsKey, to: &text)
+            return applyTone(tone, escapeKey: key, repeatsKey: repeatsKey, tonePlacement: tonePlacement, to: &text)
         }
         if lower == "z" { return clearDiacritics(in: &text) }
         if lower == "d" { return applyDStroke(escapeKey: key, repeatsKey: repeatsKey, to: &text) }
@@ -281,7 +340,7 @@ public final class VNIEngine {
         guard !range.isEmpty else { return false }
         if lower == "a" || lower == "e" || lower == "o" {
             guard let target = range.reversed().first(where: { vowels[text[$0]]?.base == lower }) else { return false }
-            return applyShape(.circumflex, target: target, escapeKey: key, repeatsKey: repeatsKey, to: &text)
+            return applyShape(.circumflex, target: target, escapeKey: key, repeatsKey: repeatsKey, tonePlacement: tonePlacement, to: &text)
         }
         if lower == "w" {
             guard var target = range.reversed().first(where: {
@@ -292,14 +351,14 @@ public final class VNIEngine {
             // qu is an initial, so quaw keeps the expected breve on a instead.
             target = hornTarget(target, in: text, range: range)
             let desired: Shape = vowels[text[target]]!.base == "a" ? .breve : .horn
-            return applyShape(desired, target: target, escapeKey: key, repeatsKey: repeatsKey, to: &text)
+            return applyShape(desired, target: target, escapeKey: key, repeatsKey: repeatsKey, tonePlacement: tonePlacement, to: &text)
         }
         return false
     }
 
-    private static func applyTone(_ tone: Int, escapeKey: Character, repeatsKey: Bool, to text: inout [Character]) -> Bool {
+    private static func applyTone(_ tone: Int, escapeKey: Character, repeatsKey: Bool, tonePlacement: TonePlacement, to text: inout [Character]) -> Bool {
         let range = letterRange(in: text)
-        guard let target = toneTarget(in: text, range: range) else { return false }
+        guard let target = toneTarget(in: text, range: range, tonePlacement: tonePlacement) else { return false }
         let oldTone = range.compactMap { vowels[text[$0]]?.tone }.first { $0 != 0 } ?? 0
         clearTones(in: &text, range: range)
         if oldTone == tone && repeatsKey {
@@ -356,7 +415,7 @@ public final class VNIEngine {
         return target - 1
     }
 
-    private static func applyShape(_ desired: Shape, target: Int, escapeKey: Character, repeatsKey: Bool, to text: inout [Character]) -> Bool {
+    private static func applyShape(_ desired: Shape, target: Int, escapeKey: Character, repeatsKey: Bool, tonePlacement: TonePlacement, to text: inout [Character]) -> Bool {
         let range = letterRange(in: text)
         var vowel = vowels[text[target]]!
         let escaping = vowel.shape == desired && repeatsKey
@@ -373,7 +432,7 @@ public final class VNIEngine {
         if escaping {
             text.append(escapeKey)
         } else {
-            relocateTone(in: &text)
+            relocateTone(in: &text, tonePlacement: tonePlacement)
         }
         return true
     }
@@ -397,17 +456,17 @@ public final class VNIEngine {
         }
     }
 
-    private static func relocateTone(in text: inout [Character]) {
+    private static func relocateTone(in text: inout [Character], tonePlacement: TonePlacement) {
         let range = letterRange(in: text)
         guard let tone = range.compactMap({ vowels[text[$0]]?.tone }).last(where: { $0 != 0 }),
-              let target = toneTarget(in: text, range: range) else { return }
+              let target = toneTarget(in: text, range: range, tonePlacement: tonePlacement) else { return }
         clearTones(in: &text, range: range)
         var vowel = vowels[text[target]]!
         vowel.tone = tone
         text[target] = vowel.character
     }
 
-    private static func toneTarget(in text: [Character], range: Range<Int>) -> Int? {
+    private static func toneTarget(in text: [Character], range: Range<Int>, tonePlacement: TonePlacement) -> Int? {
         var indices = range.filter { vowels[text[$0]] != nil }
         // In qu/gi, u/i belongs to the initial when another vowel follows it.
         if indices.count > 1, let first = indices.first, first > range.lowerBound {
@@ -424,6 +483,10 @@ public final class VNIEngine {
         }
         if indices.count == 1 { return last }
         if last < range.upperBound - 1 { return last }
+        if tonePlacement == .modern, indices.count == 2 {
+            let pair = String(indices.map { vowels[text[$0]]!.base })
+            if ["oa", "oe", "uy"].contains(pair) { return last }
+        }
         return indices[indices.count - 2]
     }
 }

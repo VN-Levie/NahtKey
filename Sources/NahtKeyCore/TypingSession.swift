@@ -12,8 +12,8 @@ public final class TypingSession {
     // complete word when backspacing all the way to the oldest retained text.
     private var leadingWordIsComplete = true
 
-    public init(corrections: [String: String] = [:], inputMethod: InputMethod = .vni) {
-        engine = VNIEngine(corrections: corrections, inputMethod: inputMethod)
+    public init(corrections: [String: String] = [:], inputMethod: InputMethod = .vni, options: TypingOptions = .init()) {
+        engine = VNIEngine(corrections: corrections, inputMethod: inputMethod, options: options)
     }
 
     public var corrections: [String: String] {
@@ -27,6 +27,15 @@ public final class TypingSession {
             guard newValue != engine.inputMethod else { return }
             reset()
             engine.inputMethod = newValue
+        }
+    }
+
+    public var options: TypingOptions {
+        get { engine.options }
+        set {
+            guard newValue != engine.options else { return }
+            reset()
+            engine.options = newValue
         }
     }
 
@@ -53,6 +62,12 @@ public final class TypingSession {
         let edit = engine.backspace()
         remember(edit)
         if engine.rendered.isEmpty { restoreTrailingWord() }
+        return edit
+    }
+
+    public func restoreRaw() -> TextEdit? {
+        guard let edit = engine.restoreRaw() else { return nil }
+        remember(edit)
         return edit
     }
 
