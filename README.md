@@ -6,7 +6,7 @@ Bộ gõ tiếng Việt cho macOS, hỗ trợ VNI, Telex và thư viện sửa l
 
 Yêu cầu **Mac Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
-1. Tải `NahtKey-0.4.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
+1. Tải `NahtKey-0.5.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
 2. Mở NahtKey và cấp **quyền Trợ năng** khi được yêu cầu.
 3. Chọn nguồn nhập **ABC**, tắt bộ gõ tiếng Việt khác, rồi chọn **VNI** hoặc **Telex** trong NahtKey.
 
@@ -18,7 +18,9 @@ Khi cập nhật, chọn **Thoát hoàn toàn NahtKey** trong menu bar trước 
 
 - **Ctrl+Shift:** bật/tắt tiếng Việt. Icon có nét gạch khi tắt.
 - Nhấn icon menu bar → **Mở NahtKey…** để quản lý từ và cài đặt.
+- Chọn **Thêm từ…** ngay trong menu bar để mở nhanh biểu mẫu. Biểu mẫu đang nhập dở được giữ lại.
 - **X** hoặc **Cmd+Q:** ẩn cửa sổ, bộ gõ tiếp tục chạy nền. App không hiện trong Dock.
+- NahtKey chỉ chạy một phiên. Mở lại ứng dụng sẽ hiện cửa sổ của phiên đang chạy, giữ nguyên nội dung đang nhập dở.
 - Bật **Khởi động cùng macOS** để chạy ở menu bar khi đăng nhập, không tự mở cửa sổ.
 - Quay lại sửa từ: `go` + Space + Backspace + `4` → `gõ`; `nhận` + Space + Backspace + `4` → `nhẫn`. Telex dùng `x` thay `4`.
 
@@ -28,7 +30,8 @@ Thêm các cặp sửa lỗi như `abn5 → bạn`, `ab5n → bạn` hoặc `cà
 
 - Thêm, sửa, xóa và tìm kiếm từ. Các mục mẫu có thể sửa hoặc xóa.
 - Cả hai ô thêm/sửa đều gõ VNI/Telex trực tiếp; nội dung dán được giữ nguyên.
-- Chuỗi cần sửa dài 1–64 chữ cái/chữ số, có thể có dấu; từ thay thế dài 1–128 ký tự. Không chứa khoảng trắng, có phân biệt hoa/thường.
+- Chuỗi cần sửa dài 1–64 chữ cái/chữ số, có thể có dấu, không chứa khoảng trắng; có phân biệt hoa/thường.
+- Nội dung thay thế dài 1–128 ký tự, có thể là cụm từ hoặc câu; không xuống dòng, không có khoảng trắng đầu/cuối. Bật **Gõ tắt thành cụm từ hoặc câu** trong **Tùy chọn** để áp dụng các mục có khoảng trắng. Các mục thay một từ vẫn hoạt động khi tắt tùy chọn này.
 - **Xuất…** lưu thư viện thành file JSON; **Nhập…** gộp file vào thư viện đang dùng. Để chuyển sang máy khác, xuất file rồi nhập trên máy đó.
 - Mục trùng tự gộp. Nếu khác từ thay thế, **giá trị trong file nhập được ưu tiên**; nếu trùng ngay trong file, dòng cuối thắng.
 - File nhập tối đa **4 MiB**. File lỗi không làm thay đổi thư viện.
@@ -42,12 +45,23 @@ Thêm các cặp sửa lỗi như `abn5 → bạn`, `ab5n → bạn` hoặc `cà
 
 Ví dụ: `ban5 → bạn`, `uu7 → ưu`, `chu7a → chưa`, `d9c → đc`, `dt9 → đt`.
 
-- VNI giữ nguyên các chuỗi như `matkhau123`, `model123`. Telex chưa có tính năng nhận diện mã tương đương.
+- VNI giữ nguyên các chuỗi như `matkhau123`, `model123`.
 - Chuỗi như `a4`, `ban5` vẫn được hiểu là tiếng Việt. Tắt bộ gõ khi muốn nhập nguyên văn.
-- Cách đặt dấu hiện dùng `hòa`, `khỏe`, `thủy`. Khả năng sửa từ khi di chuyển con trỏ phụ thuộc ứng dụng đang dùng.
+- Mặc định đặt dấu `hòa`, `khỏe`, `thủy`, và chỉnh lại vị trí dấu sau Backspace, như `hoàn` xóa `n` thành `hòa`. Có thể đổi cách đặt dấu hoặc tắt việc chỉnh dấu trong **Tùy chọn**. Khả năng sửa từ khi di chuyển con trỏ phụ thuộc ứng dụng đang dùng.
 - Khi macOS bật Secure Event Input, NahtKey không xử lý phím. Một số trình soạn thảo hoặc game có thể chưa tương thích.
 
 NahtKey xử lý cục bộ, không ghi nhật ký phím hoặc gửi nội dung gõ lên mạng.
+
+## Tùy chọn
+
+Các tiện ích sau mặc định tắt:
+
+- **Khôi phục tiếng Anh và mã khi gõ Telex:** khôi phục các chuỗi không phù hợp cấu trúc tiếng Việt khi kết thúc từ, như `user`, `office`, `useEffect`. Không tác động VNI; chuỗi mơ hồ như `test → tét` vẫn giữ dấu.
+- **Esc khôi phục chuỗi phím:** nhấn trước khi kết thúc từ để lấy lại phím gốc trong cả VNI và Telex. Không khôi phục sau khi đã xóa hoặc quay lại sửa từ cũ. Khi không có chuỗi cần khôi phục, Esc hoạt động bình thường.
+- **Nhớ bật/tắt theo ứng dụng:** lưu trạng thái riêng khi bạn chủ động bật/tắt. Tắt tùy chọn để trở lại trạng thái chung; kiểu gõ VNI/Telex luôn dùng chung.
+- **Gõ tắt thành cụm từ hoặc câu:** dùng các mục nhiều từ trong thư viện cá nhân.
+
+Phím chuyển mặc định **Ctrl+Shift**; có thể chọn **Cmd+Shift**, **Ctrl+Option** hoặc tắt phím chuyển. Tổ hợp đang dùng cho lệnh khác không làm đổi chế độ gõ.
 
 ## Phát triển
 
