@@ -3,6 +3,16 @@ import XCTest
 @testable import NahtKeyApp
 
 final class CaretWordReaderTests: XCTestCase {
+    func testPendingInlineCompletionAcceptsOnlyAnObservedPrefixOfTheTrackedWord() {
+        for (left, word) in [("c", "chu"), ("ch", "chu"), ("u", "uu"), ("xin ch", "chu"),
+                             ("chu", "chư"), ("luo", "lưỡi"), ("D", "Đa")] {
+            XCTAssertTrue(CaretWordReader.matchesPendingInlineCompletionPrefix(left, word: word), "\(left) / \(word)")
+        }
+        for left in ["", "other", "xchu", "_chu", "9chu", "chu_extra", "chua"] {
+            XCTAssertFalse(CaretWordReader.matchesPendingInlineCompletionPrefix(left, word: "chu"), left)
+        }
+        XCTAssertFalse(CaretWordReader.matchesPendingInlineCompletionPrefix("chu", word: ""))
+    }
     func testInlineCompletionRequiresTheWholeTrackedWordBeforeSelection() {
         XCTAssertTrue(CaretWordReader.matchesInlineCompletionPrefix("chu", word: "chu"))
         XCTAssertTrue(CaretWordReader.matchesInlineCompletionPrefix(" chu", word: "chu"))

@@ -5,6 +5,30 @@ import NahtKeyCore
 @testable import NahtKeyApp
 
 final class KeyboardEventBatchTests: XCTestCase {
+    @MainActor func testSafariBatchUsesNativeForwardDeletionAndKeepsHeldLetterKeys() throws {
+        let operations = ReplacementPlan.operations(for: TextEdit(deleteCount: 2, insertText: "ưu"), prepareSafariTail: true)
+        let batch = try XCTUnwrap(KeyboardEventBatch.make(operations, source: nil, marker: 42,
+            isPhysicallyDown: { [CGKeyCode(0), 14].contains($0) }))
+        let editor = NSTextView(frame: .zero)
+        editor.string = "uu.localhost:8766"
+        editor.setSelectedRange(NSRange(location: 2, length: 15))
+        for event in batch where event.type == .keyDown {
+            let key = event.getIntegerValueField(.keyboardEventKeycode)
+            switch key {
+            case 117: editor.deleteForward(nil)
+            case 51: editor.deleteBackward(nil)
+            default:
+                XCTAssertNotEqual(key, 0)
+                XCTAssertNotEqual(key, 14)
+                var count = 0
+                var units = [UniChar](repeating: 0, count: 32)
+                event.keyboardGetUnicodeString(maxStringLength: 32, actualStringLength: &count, unicodeString: &units)
+                editor.insertText(String(utf16CodeUnits: units, count: count), replacementRange: editor.selectedRange())
+            }
+        }
+        XCTAssertEqual(editor.string, "ưu")
+        XCTAssertNil(KeyboardEventBatch.make(operations, source: nil, marker: 42, isPhysicallyDown: { $0 == 117 }))
+    }
     @MainActor func testHeldAAndELeaveHornReplacementAndPhysicalKeysIntact() throws {
         for held: Set<CGKeyCode> in [[], [0], [0, 14], [0, 11, 14]] {
             let source = try XCTUnwrap(KeyboardController.makeEventSource())

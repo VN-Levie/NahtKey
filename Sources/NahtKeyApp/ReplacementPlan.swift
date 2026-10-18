@@ -4,6 +4,7 @@ import NahtKeyCore
 enum ReplacementOperation: Equatable {
     case text(String)
     case backspace
+    case forwardDelete
 }
 
 /// Replace the engine's suffix with ordinary deletion and Unicode input. Avoid
@@ -13,12 +14,20 @@ enum ReplacementPlan {
         TextEdit(deleteCount: edit.deleteCount, insertText: edit.insertText + " ")
     }
 
-    static func operations(for edit: TextEdit, clearInlineCompletion: Bool = false) -> [ReplacementOperation] {
+    static func operations(for edit: TextEdit, clearInlineCompletion: Bool = false,
+                           prepareSafariTail: Bool = false) -> [ReplacementOperation] {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return [] }
         var result: [ReplacementOperation] = []
         // This optional deletion clears an existing selected suggestion, not a
         // character guessed to exist. The host must verify that selection first.
-        if clearInlineCompletion && edit.deleteCount > 0 { result.append(.backspace) }
+        if prepareSafariTail && edit.deleteCount > 0 {
+            // At the verified end of Safari's address field this either removes
+            // a selected completion or does nothing. The decision is made by
+            // Safari at delivery time, even if AX did not see the completion yet.
+            result.append(.forwardDelete)
+        } else if clearInlineCompletion && edit.deleteCount > 0 {
+            result.append(.backspace)
+        }
         result += Array(repeating: .backspace, count: edit.deleteCount)
         result += unicodeChunks(edit.insertText).map(ReplacementOperation.text)
         return result

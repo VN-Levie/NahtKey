@@ -25,6 +25,10 @@ final class KeyboardController: ObservableObject {
     private let ownBundleID = Bundle.main.bundleIdentifier ?? "vn.nahtkey.mac"
     private let eventSource = KeyboardController.makeEventSource()
     private var commitSpaceAsText = false
+    private var isSafariAddressField = false
+    private var safariWordHadRewrite = false
+    private var resyncAfterSafariBackspace = false
+    private var trustedSafariTail = false
     private var keyDelivery = KeyDeliveryState()
     private var focusObserver: AXObserver?
     private var focusApplication: AXUIElement?
@@ -61,7 +65,7 @@ final class KeyboardController: ObservableObject {
 
     func updateCorrections(_ corrections: [String: String]) {
         allCorrections = corrections
-        engine.reset()
+        resetComposition()
         engine.corrections = DictionaryStore.activeCorrections(corrections, expandPhrases: preferences.expandPhrases)
     }
 
@@ -73,7 +77,7 @@ final class KeyboardController: ObservableObject {
         updated.save(to: .standard)
         engine.options = updated.typing
         engine.corrections = DictionaryStore.activeCorrections(allCorrections, expandPhrases: updated.expandPhrases)
-        engine.reset()
+        resetComposition()
         toggleGesture.reset()
         applyDesiredEnabledState()
     }
@@ -95,7 +99,7 @@ final class KeyboardController: ObservableObject {
         let previouslyPermitted = hasPermission
         hasPermission = AXIsProcessTrusted()
         _ = currentInputApplication()
-        if IsSecureEventInputEnabled() { engine.reset(); keyDelivery.reset(); toggleGesture.reset() }
+        if IsSecureEventInputEnabled() { resetComposition(); keyDelivery.reset(); toggleGesture.reset() }
         let competitors: Set<String> = ["com.trankynam.GoTiengViet", "com.tuyenmai.openkey", "com.lamquangminh.evkey"]
         otherInputApps = NSWorkspace.shared.runningApplications.compactMap { app in
             guard let id = app.bundleIdentifier else { return nil }
@@ -150,10 +154,17 @@ final class KeyboardController: ObservableObject {
         return source
     }
 
+    private func resetComposition() {
+        engine.reset()
+        safariWordHadRewrite = false
+        resyncAfterSafariBackspace = false
+        trustedSafariTail = false
+    }
+
     private func currentInputApplication() -> NSRunningApplication? {
         let app = NSWorkspace.shared.frontmostApplication
         if lastInputPID != app?.processIdentifier {
-            engine.reset()
+            resetComposition()
             lastInputPID = app?.processIdentifier
             watchFocus(of: app)
             applicationState.activate(app?.bundleIdentifier, ownBundleID: ownBundleID)
@@ -169,10 +180,12 @@ final class KeyboardController: ObservableObject {
         focusObserver = nil
         focusApplication = nil
         focusedElement = nil
+        isSafariAddressField = false
         secureFocus = false
         guard hasPermission, let app else { return }
         let application = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(application, 0.03)
+        AXUIElementSetMessagingTimeout(application, app.bundleIdentifier == SafariAddressBarContext.safariBundleIdentifier
+            ? SafariAddressBarContext.messagingTimeout : 0.03)
         focusApplication = application
         var observer: AXObserver?
         guard AXObserverCreate(app.processIdentifier, { _, _, _, context in
@@ -189,19 +202,31 @@ final class KeyboardController: ObservableObject {
     }
 
     private func refreshFocusedElement() {
+        let wasSafariAddressField = isSafariAddressField
+        isSafariAddressField = false
         guard let application = focusApplication else { return }
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(application, kAXFocusedUIElementAttribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return }
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            focusedElement = nil
+            if wasSafariAddressField { resetComposition() }
+            return
+        }
         let element = value as! AXUIElement
-        if let previous = focusedElement, !CFEqual(previous, element) { engine.reset() }
+        if let previous = focusedElement, !CFEqual(previous, element) {
+            resetComposition()
+        }
         focusedElement = element
         var subrole: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
         var protected: CFTypeRef?
         AXUIElementCopyAttributeValue(element, "AXProtectedContent" as CFString, &protected)
         secureFocus = (subrole as? String) == kAXSecureTextFieldSubrole as String || (protected as? Bool) == true
-        if secureFocus { engine.reset(); keyDelivery.reset() }
+        if secureFocus { resetComposition(); keyDelivery.reset() }
+        if !secureFocus, let pid = lastInputPID {
+            isSafariAddressField = SafariAddressBarContext.identifies(element: element,
+                bundleID: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "")
+        }
     }
 
     private func start(refresh: Bool = true, activate: Bool = true) {
@@ -211,7 +236,7 @@ final class KeyboardController: ObservableObject {
             return
         }
         if let tap {
-            engine.reset()
+            resetComposition()
             keyDelivery.reset()
             CGEvent.tapEnable(tap: tap, enable: true)
             isEnabled = activate
@@ -250,14 +275,14 @@ final class KeyboardController: ObservableObject {
         CGEvent.tapEnable(tap: newTap, enable: true)
         isEnabled = activate
         errorMessage = nil
-        engine.reset()
+        resetComposition()
     }
 
     private func stop() {
         // Keep the lightweight modifier listener alive so Ctrl+Shift can enable
         // typing again. Off-mode events are returned before reading text content.
         if let tap { CGEvent.tapEnable(tap: tap, enable: hasPermission) }
-        engine.reset()
+        resetComposition()
         isEnabled = false
         keyDelivery.reset()
         errorMessage = nil
@@ -266,7 +291,7 @@ final class KeyboardController: ObservableObject {
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let pass = Unmanaged.passUnretained(event)
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            engine.reset()
+            resetComposition()
             keyDelivery.reset()
             toggleGesture.reset()
             if hasPermission, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -274,7 +299,7 @@ final class KeyboardController: ObservableObject {
         }
         guard event.getIntegerValueField(.eventSourceUserData) != Self.eventMarker else { return pass }
         if IsSecureEventInputEnabled() {
-            engine.reset()
+            resetComposition()
             keyDelivery.reset()
             toggleGesture.reset()
             return pass
@@ -294,7 +319,7 @@ final class KeyboardController: ObservableObject {
         let pass = Unmanaged.passUnretained(event)
         if type == .flagsChanged {
             if toggleGesture.flagsChanged(event.flags, shortcut: preferences.toggleShortcut) {
-                engine.reset()
+                resetComposition()
                 toggle()
             }
         } else if type == .keyDown || type == .leftMouseDown || type == .rightMouseDown
@@ -309,31 +334,62 @@ final class KeyboardController: ObservableObject {
         // Refresh process/focus before consulting secureFocus, which belongs to
         // the previously watched application until this transition is handled.
         // Password entry is owned by macOS; discard any partially composed word.
-        guard !IsSecureEventInputEnabled(), !secureFocus else { engine.reset(); return pass }
+        guard !IsSecureEventInputEnabled(), !secureFocus else { resetComposition(); return pass }
         if type == .leftMouseDown || type == .rightMouseDown || type == .leftMouseDragged || type == .rightMouseDragged {
-            engine.reset(); return pass
+            resetComposition(); return pass
         }
         let flags = event.flags
         if type == .flagsChanged {
-            if !flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty { engine.reset() }
+            if !flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty { resetComposition() }
             return pass
         }
         guard type == .keyDown else { return pass }
         // NahtKey's editing fields and lab compose locally with the same engine.
         guard let activeApp, activeApp.bundleIdentifier != ownBundleID else {
-            engine.reset()
+            resetComposition()
             return pass
         }
         commitSpaceAsText = ReplacementPlan.commitsSpaceAsText(bundleID: activeApp.bundleIdentifier ?? "")
         guard flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty else {
-            engine.reset()
+            resetComposition()
             return pass
         }
+        if activeApp.bundleIdentifier == SafariAddressBarContext.safariBundleIdentifier {
+            // Cmd+L and Safari type-ahead can change the field before its AX
+            // notification arrives. Refresh at the start of a word, not on every
+            // ordinary letter. Backspace needs the current native selection.
+            if engine.rendered.isEmpty || key == 51 { refreshFocusedElement() }
+            if engine.rendered.isEmpty {
+                // Establish a tail caret before forwarding the first native
+                // letter. Printable keys and our own replacements keep it at
+                // the tail even while Safari's AX selection lags behind.
+                let context = currentSafariAddressContext()
+                trustedSafariTail = context?.isAtTail == true && context?.selection.length == 0
+            }
+            guard !secureFocus else { resetComposition(); return pass }
+        }
         if key == 51 { // Physical Backspace removes a visible grapheme, not one raw VNI digit.
-            let edit = engine.backspace()
+            let previousWord = engine.rendered
+            let context = currentSafariAddressContext()
+            let clearingCompletion = context?.isAtTail == true
+                && (context?.selection.length ?? 0) > 0
+                && focusedElement.map {
+                    CaretWordReader.hasInlineCompletion(after: previousWord, in: $0,
+                        messagingTimeout: SafariAddressBarContext.messagingTimeout)
+                } == true
+            if isSafariAddressField && !safariWordHadRewrite && !previousWord.isEmpty && !clearingCompletion {
+                // Native type-ahead may appear after the AX snapshot, just
+                // before this Backspace is delivered. Let Safari decide what
+                // it deletes, then recover the visible word on the next key.
+                resetComposition()
+                resyncAfterSafariBackspace = true
+                return pass
+            }
+            guard let edit = Self.backspaceEdit(in: engine, clearingInlineCompletion: clearingCompletion) else { return pass }
+            safariWordHadRewrite = true
             if edit.deleteCount == 1 && edit.insertText.isEmpty { return pass }
             if edit.deleteCount == 0 && edit.insertText.isEmpty { return pass }
-            guard post(edit, proxy: proxy) else { engine.reset(); return pass }
+            guard post(edit, proxy: proxy, previousWord: previousWord) else { resetComposition(); return pass }
             return nil
         }
         if [36, 48, 49, 76].contains(key) { // Return, Tab, Space, keypad Return
@@ -345,65 +401,131 @@ final class KeyboardController: ObservableObject {
                 // Own the completed word AND its space as one text transaction.
                 // Do not mix synthetic word replacement with a physical delimiter.
                 guard post(ReplacementPlan.committingSpace(after: edit), proxy: proxy, previousWord: previousWord)
-                else { engine.reset(); return pass }
+                else { resetComposition(); return pass }
                 return nil
             }
-            if !post(edit, proxy: proxy, previousWord: previousWord) { engine.reset() }
-            if key != 49 { engine.reset() } // Return/Tab may submit or move to another field.
+            if !post(edit, proxy: proxy, previousWord: previousWord) { resetComposition() }
+            if key != 49 { resetComposition() } // Return/Tab may submit or move to another field.
             return pass
         }
         if key == 53, preferences.restoreWithEscape {
             let previousWord = engine.rendered
             if let edit = engine.restoreRaw() {
-                guard post(edit, proxy: proxy, previousWord: previousWord) else { engine.reset(); return pass }
+                guard post(edit, proxy: proxy, previousWord: previousWord) else { resetComposition(); return pass }
                 return nil
             }
         }
         if [53, 115, 116, 117, 119, 121, 123, 124, 125, 126].contains(key) {
-            engine.reset()
+            resetComposition()
             return pass
         }
         var length = 0
         var units = [UniChar](repeating: 0, count: 8)
         event.keyboardGetUnicodeString(maxStringLength: units.count, actualStringLength: &length, unicodeString: &units)
-        guard length > 0, length <= units.count else { engine.reset(); return pass }
+        guard length > 0, length <= units.count else { resetComposition(); return pass }
         let text = String(utf16CodeUnits: units, count: length)
         guard text.count == 1, let character = text.first,
-              let ascii = character.asciiValue else { engine.reset(); return pass }
+              let ascii = character.asciiValue else { resetComposition(); return pass }
         if (65...90).contains(ascii) || (97...122).contains(ascii) || (48...57).contains(ascii) {
-            resumeWordIfNeeded(for: character)
+            if engine.rendered.isEmpty { safariWordHadRewrite = false }
+            guard resumeWordIfNeeded(for: character) else { return pass }
             let previousWord = engine.rendered
             let edit = engine.process(character)
+            safariWordHadRewrite = safariWordHadRewrite || edit.deleteCount > 0
             if edit.deleteCount == 0 && edit.insertText == text { return pass }
-            guard post(edit, proxy: proxy, previousWord: previousWord) else { engine.reset(); return pass }
+            guard post(edit, proxy: proxy, previousWord: previousWord) else { resetComposition(); return pass }
             return nil
         }
         if ascii >= 32 && ascii < 127 {
             let previousWord = engine.rendered
-            if !post(engine.finish(boundary: character), proxy: proxy, previousWord: previousWord) { engine.reset() }
+            if !post(engine.finish(boundary: character), proxy: proxy, previousWord: previousWord) { resetComposition() }
         } else {
-            engine.reset()
+            resetComposition()
         }
         return pass
     }
 
-    private func resumeWordIfNeeded(for character: Character) {
-        guard engine.rendered.isEmpty else { return }
+    private func resumeWordIfNeeded(for character: Character) -> Bool {
+        guard engine.rendered.isEmpty else { return true }
+        let mustResync = resyncAfterSafariBackspace
         let modifiers = inputMethod == .vni ? "0123456789" : "sfrxjzaweod"
-        guard modifiers.contains(String(character).lowercased()), !IsSecureEventInputEnabled() else { return }
+        guard mustResync || modifiers.contains(String(character).lowercased()),
+              !IsSecureEventInputEnabled() else { return true }
         refreshFocusedElement()
-        guard !secureFocus, let focusedElement,
-              let word = CaretWordReader.word(beforeCaretIn: focusedElement) else { return }
-        engine.resume(word)
+        guard !secureFocus, let focusedElement else {
+            if mustResync && !secureFocus { resyncAfterSafariBackspace = true }
+            return !mustResync
+        }
+        if mustResync && !isSafariAddressField {
+            resyncAfterSafariBackspace = false
+            return false
+        }
+        let word = CaretWordReader.word(beforeCaretIn: focusedElement,
+            messagingTimeout: isSafariAddressField ? SafariAddressBarContext.messagingTimeout : 0.02)
+        if mustResync && isSafariAddressField {
+            let ready = Self.restoreAfterUncertainBackspace(in: engine, word: word)
+            resyncAfterSafariBackspace = !ready
+            if ready { safariWordHadRewrite = true }
+            // If AX still cannot answer, forward this native key without
+            // starting a partial word; retry with visible text on the next key.
+            return ready
+        }
+        if let word {
+            engine.resume(word)
+            safariWordHadRewrite = true // Resumed text has no known delivery history.
+        }
+        return true
+    }
+
+    static func restoreAfterUncertainBackspace(in session: TypingSession, word: String?) -> Bool {
+        if let word { session.resume(word); return true }
+        return false
+    }
+
+    static func backspaceEdit(in session: TypingSession, clearingInlineCompletion: Bool) -> TextEdit? {
+        // Safari's native Backspace removes only the selected suggestion. The
+        // tracked word and its history must remain intact for the next modifier.
+        clearingInlineCompletion ? nil : session.backspace()
+    }
+
+    private func currentSafariAddressContext() -> SafariAddressBarContext? {
+        guard isSafariAddressField, !secureFocus, let focusedElement else { return nil }
+        return SafariAddressBarContext.readSelection(inVerifiedAddressField: focusedElement)
+    }
+
+    private func cachedSafariFocusIsCurrent() -> Bool {
+        guard isSafariAddressField, let application = focusApplication, let focusedElement else { return false }
+        var value: CFTypeRef?
+        let focusResult = AXUIElementCopyAttributeValue(application, kAXFocusedUIElementAttribute as CFString, &value)
+        guard focusResult == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID(),
+              CFEqual(value, focusedElement) else {
+            isSafariAddressField = false
+            self.focusedElement = nil
+            return false
+        }
+        return true
     }
 
     private func post(_ edit: TextEdit, proxy: CGEventTapProxy, previousWord: String = "") -> Bool {
         guard edit.deleteCount > 0 || !edit.insertText.isEmpty else { return true }
-        let clearCompletion = commitSpaceAsText && edit.deleteCount > 0 && !edit.insertText.isEmpty
+        // Never use a cached address-field classification after an undelivered
+        // focus notification. Abort the replacement before posting any deletion.
+        if isSafariAddressField && !cachedSafariFocusIsCurrent() { return false }
+        // Mouse/navigation/modifier/focus changes clear this proof together
+        // with composition. Do not re-decide it from a lagging AX range.
+        let ownsSafariTail = isSafariAddressField && trustedSafariTail
+        let context = edit.deleteCount > 0 && !ownsSafariTail ? currentSafariAddressContext() : nil
+        let needsCompletionCheck = !ownsSafariTail && (context.map { $0.selection.length > 0 } ?? true)
+        let clearCompletion = needsCompletionCheck && commitSpaceAsText && edit.deleteCount > 0 && !edit.insertText.isEmpty
             && !secureFocus && focusedElement.map {
-                CaretWordReader.hasInlineCompletion(after: previousWord, in: $0)
+                CaretWordReader.hasInlineCompletion(after: previousWord, in: $0,
+                    allowingPendingPrefix: context?.isAtTail == true,
+                    messagingTimeout: isSafariAddressField ? SafariAddressBarContext.messagingTimeout : 0.02)
             } == true
-        let operations = ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion)
+        let prepareSafariTail = ownsSafariTail || context?.permitsCompletionClearing(verifiedInlineCompletion: clearCompletion) == true
+        let operations = ReplacementPlan.operations(for: edit, clearInlineCompletion: clearCompletion,
+                                                    prepareSafariTail: prepareSafariTail)
         guard let events = KeyboardEventBatch.make(operations, source: eventSource, marker: Self.eventMarker,
                                                    isPhysicallyDown: { key in
             self.keyDelivery.hasForwardedDown(key) || CGEventSource.keyState(.hidSystemState, key: key)

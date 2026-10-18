@@ -4,15 +4,32 @@ import Foundation
 /// Bounded context for reconversion and selected inline completion. Nothing is
 /// persisted or logged. Secure controls are excluded before reading text.
 enum CaretWordReader {
-    static func hasInlineCompletion(after word: String, in element: AXUIElement) -> Bool {
+    static func matchesPendingInlineCompletionPrefix(_ left: String, word: String) -> Bool {
         guard !word.isEmpty, word.count <= 128 else { return false }
-        AXUIElementSetMessagingTimeout(element, 0.02)
+        // AX can lag behind keys already forwarded to Safari: "c"/"ch" while
+        // our word is "chu", or "chu" before the posted horn reaches "chư".
+        // Require the *whole* boundary-delimited prefix; never accept select-all,
+        // an unrelated tail, or a suffix cut out of an identifier.
+        let prefix = String(left.reversed().prefix {
+            $0.isLetter || $0.isNumber || $0 == "_"
+        }.reversed())
+        guard !prefix.isEmpty, prefix.count <= word.count else { return false }
+        func baseLetters(_ value: String) -> String {
+            value.folding(options: .diacriticInsensitive, locale: Locale(identifier: "vi_VN"))
+                .replacingOccurrences(of: "đ", with: "d").replacingOccurrences(of: "Đ", with: "D")
+        }
+        return baseLetters(word).hasPrefix(baseLetters(prefix))
+    }
+    static func hasInlineCompletion(after word: String, in element: AXUIElement,
+                                    allowingPendingPrefix: Bool = false, messagingTimeout: Float = 0.02) -> Bool {
+        guard !word.isEmpty, word.count <= 128, word.utf16.count <= 512 else { return false }
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         // The usual collapsed-caret path needs only this metadata query.
         guard let selectionValue = attribute(kAXSelectedTextRangeAttribute, of: element),
               CFGetTypeID(selectionValue) == AXValueGetTypeID() else { return false }
         var selection = CFRange()
         guard AXValueGetValue(selectionValue as! AXValue, .cfRange, &selection),
-              selection.location >= word.utf16.count, selection.length > 0,
+              selection.location >= (allowingPendingPrefix ? 1 : word.utf16.count), selection.length > 0,
               selection.length <= 4096,
               let role = attribute(kAXRoleAttribute, of: element) as? String,
               [kAXTextFieldRole as String, kAXComboBoxRole as String].contains(role),
@@ -21,7 +38,9 @@ enum CaretWordReader {
         let start = max(0, selection.location - word.utf16.count - 1)
         let range = CFRange(location: start, length: selection.location - start)
         guard let left = text(in: range, of: element) else { return false }
-        return matchesInlineCompletionPrefix(left, word: word)
+        return allowingPendingPrefix
+            ? matchesPendingInlineCompletionPrefix(left, word: word)
+            : matchesInlineCompletionPrefix(left, word: word)
     }
 
     static func matchesInlineCompletionPrefix(_ left: String, word: String) -> Bool {
@@ -30,8 +49,8 @@ enum CaretWordReader {
         return preceding.map { !$0.isLetter && !$0.isNumber && $0 != "_" } ?? true
     }
 
-    static func word(beforeCaretIn element: AXUIElement) -> String? {
-        AXUIElementSetMessagingTimeout(element, 0.02)
+    static func word(beforeCaretIn element: AXUIElement, messagingTimeout: Float = 0.02) -> String? {
+        AXUIElementSetMessagingTimeout(element, messagingTimeout)
         let subrole = attribute(kAXSubroleAttribute, of: element) as? String
         guard subrole != (kAXSecureTextFieldSubrole as String),
               (attribute("AXProtectedContent", of: element) as? Bool) != true,

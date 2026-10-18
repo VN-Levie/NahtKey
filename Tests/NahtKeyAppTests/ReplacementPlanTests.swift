@@ -32,6 +32,7 @@ final class ReplacementPlanTests: XCTestCase {
                                 .replacingOccurrences(of: "\u{200C}", with: "")
                             if !accepted.isEmpty { editor.insertText(accepted, replacementRange: editor.selectedRange()) }
                         case .backspace: editor.deleteBackward(nil)
+                        case .forwardDelete: editor.deleteForward(nil)
                         }
                     }
                 }
@@ -80,6 +81,11 @@ final class ReplacementPlanTests: XCTestCase {
                 anchor = caret
             case .backspace:
                 let deletion = selected.isEmpty ? max(0, selected.lowerBound - 1)..<selected.lowerBound : selected
+                characters.removeSubrange(deletion)
+                caret = deletion.lowerBound
+                anchor = caret
+            case .forwardDelete:
+                let deletion = selected.isEmpty ? selected.lowerBound..<min(characters.count, selected.lowerBound + 1) : selected
                 characters.removeSubrange(deletion)
                 caret = deletion.lowerBound
                 anchor = caret

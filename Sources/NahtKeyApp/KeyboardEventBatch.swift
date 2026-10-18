@@ -16,6 +16,9 @@ enum KeyboardEventBatch {
                      isPhysicallyDown: (CGKeyCode) -> Bool = {
                          CGEventSource.keyState(.hidSystemState, key: $0)
                      }) -> [CGEvent]? {
+        // A synthetic key-up must not release a real Forward Delete press.
+        // Reject before creating/posting any part of the replacement.
+        guard !operations.contains(.forwardDelete) || !isPhysicallyDown(CGKeyCode(kVK_ForwardDelete)) else { return nil }
         let hasText = operations.contains { if case .text = $0 { return true }; return false }
         let carrier = hasText ? textKeys.first(where: { !isPhysicallyDown($0) }) : nil
         guard !hasText || carrier != nil else { return nil }
@@ -28,6 +31,7 @@ enum KeyboardEventBatch {
             let text: String?
             switch operation {
             case .backspace: key = CGKeyCode(kVK_Delete); text = nil
+            case .forwardDelete: key = CGKeyCode(kVK_ForwardDelete); text = nil
             case .text(let value): key = carrier!; text = value
             }
             for down in [true, false] {
