@@ -42,6 +42,10 @@ public final class TypingSession {
     public var raw: String { engine.raw }
     public var rendered: String { engine.rendered }
 
+    /// A known delimiter is still context. AX may not yet show that Space or
+    /// punctuation; reading its stale preceding word would join two tokens.
+    public var needsExternalWordContext: Bool { engine.rendered.isEmpty && recent.isEmpty }
+
     public func process(_ character: Character) -> TextEdit {
         let edit = engine.process(character)
         remember(edit)

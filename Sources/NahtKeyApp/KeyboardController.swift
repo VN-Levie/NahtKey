@@ -451,6 +451,10 @@ final class KeyboardController: ObservableObject {
     private func resumeWordIfNeeded(for character: Character) -> Bool {
         guard engine.rendered.isEmpty else { return true }
         let mustResync = resyncAfterSafariBackspace
+        // A just-committed Space/punctuation already proves this is a new word.
+        // Chromium AX can still expose the previous word before its delimiter,
+        // so a leading Telex f/r/s must not reconvert that stale word.
+        guard mustResync || engine.needsExternalWordContext else { return true }
         let modifiers = inputMethod == .vni ? "0123456789" : "sfrxjzaweod"
         guard mustResync || modifiers.contains(String(character).lowercased()),
               !IsSecureEventInputEnabled() else { return true }
