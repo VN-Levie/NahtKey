@@ -146,12 +146,20 @@ public final class VNIEngine {
     /// Resume composition from the remaining visible text. Since the original key
     /// sequence is no longer knowable, personal correction waits for a new token.
     public func backspace() -> TextEdit {
-        mayCorrectRaw = false
         guard !rendered.isEmpty else {
+            // Deleting at an empty field (including Select All + Backspace)
+            // must not disable correction/restoration for the next fresh word.
+            // TypingSession separately resumes an earlier known word if needed.
+            if !passesThroughLongToken { reset() }
             return TextEdit(deleteCount: 1, insertText: "")
         }
+        mayCorrectRaw = false
         let previous = rendered
         characters.removeLast()
+        if characters.isEmpty {
+            reset()
+            return Self.edit(from: previous, to: "")
+        }
         if options.normalizeToneOnBackspace, !keepsLiteralToken, Self.isPossibleVietnamesePrefix(characters),
            characters.compactMap({ Self.vowels[$0]?.tone }).filter({ $0 != 0 }).count == 1 {
             Self.relocateTone(in: &characters, tonePlacement: options.tonePlacement)
