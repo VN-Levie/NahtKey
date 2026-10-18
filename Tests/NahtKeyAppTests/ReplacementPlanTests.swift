@@ -9,6 +9,9 @@ final class ReplacementPlanTests: XCTestCase {
         // Rich editors may discard/normalize temporary invisible input. Replay
         // the real plan on NSTextView using native insertion and deletion.
         let cases: [(InputMethod, String, String)] = [
+            (.vni, "bao3", "bảo"), (.vni, "dau962", "đầu"),
+            (.vni, "bao3 bao3 bao3", "bảo bảo bảo"),
+            (.vni, "dau962 dau962", "đầu đầu"),
             (.vni, "chu7a", "chưa"), (.vni, "chua7", "chưa"),
             (.vni, "cu7a", "cưa"), (.vni, "cua7", "cưa"),
             (.vni, "thu7", "thư"), (.vni, "uu7", "ưu"),

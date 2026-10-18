@@ -212,7 +212,10 @@ final class KeyboardController: ObservableObject {
             if wasSafariAddressField { resetComposition() }
             return
         }
-        let element = value as! AXUIElement
+        // ARIA comboboxes can report their active result as AX focus while
+        // keyboard input still belongs to the owning field. Normalize that
+        // relationship before deciding whether composition moved to another field.
+        let element = TextInputFocus.resolve(observed: value as! AXUIElement, previous: focusedElement)
         if let previous = focusedElement, !CFEqual(previous, element) {
             resetComposition()
         }

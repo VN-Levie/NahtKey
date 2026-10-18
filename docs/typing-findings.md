@@ -7,6 +7,8 @@ Các ví dụ dưới đây dùng để kiểm tra bộ gõ khi cập nhật.
 | Cách gõ VNI | Kết quả |
 |---|---|
 | `d9a4` | đã |
+| `bao3` | bảo |
+| `dau962` | đầu |
 | `chu7a`, `chua7` | chưa |
 | `cu7a`, `cua7` | cưa |
 | `mu7a`, `mua7` | mưa |
@@ -21,6 +23,8 @@ Các ví dụ dưới đây dùng để kiểm tra bộ gõ khi cập nhật.
 | `nhận` + Space + Backspace + `4` | nhẫn |
 
 Thử thêm Telex, chữ hoa, dấu lặp, Backspace và nhập ở đầu ô trống hoặc sau khi chọn hết/xóa.
+
+Ở ô tìm kiếm có danh sách kết quả, thử `bao3 bao3 bao3` và `dau962 dau962` ngay từ đầu ô. Kết quả gợi ý xuất hiện hoặc đổi mục đang chọn không được làm mất phần từ đang gõ. Chuyển sang ô khác, chọn hết/xóa rồi gõ lại vẫn phải bỏ ngữ cảnh cũ.
 
 ## Tùy chọn và gõ xen kẽ
 
