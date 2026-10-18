@@ -6,7 +6,7 @@ Bộ gõ tiếng Việt cho macOS, hỗ trợ VNI, Telex và thư viện sửa l
 
 Yêu cầu **Mac Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
-1. Tải `NahtKey-0.5.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
+1. Tải `NahtKey-0.5.1-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
 2. Mở NahtKey và cấp **quyền Trợ năng** khi được yêu cầu.
 3. Chọn nguồn nhập **ABC**, tắt bộ gõ tiếng Việt khác, rồi chọn **VNI** hoặc **Telex** trong NahtKey.
 
@@ -31,6 +31,8 @@ Thêm các cặp sửa lỗi như `abn5 → bạn`, `ab5n → bạn` hoặc `cà
 - Thêm, sửa, xóa và tìm kiếm từ. Các mục mẫu có thể sửa hoặc xóa.
 - Cả hai ô thêm/sửa đều gõ VNI/Telex trực tiếp; nội dung dán được giữ nguyên.
 - Chuỗi cần sửa dài 1–64 chữ cái/chữ số, có thể có dấu, không chứa khoảng trắng; có phân biệt hoa/thường.
+- Ưu tiên quy tắc khớp chuỗi phím gốc, sau đó đến từ đã ghép dấu, rồi mới khôi phục tiếng Anh. Xóa hết từ rồi gõ lại sẽ áp dụng quy tắc như một từ mới.
+- Để giữ một từ tiếng Anh mơ hồ, có thể thêm quy tắc `test → test`. Khi đó vẫn gõ được `tét` bằng `tets`.
 - Nội dung thay thế dài 1–128 ký tự, có thể là cụm từ hoặc câu; không xuống dòng, không có khoảng trắng đầu/cuối. Bật **Gõ tắt thành cụm từ hoặc câu** trong **Tùy chọn** để áp dụng các mục có khoảng trắng. Các mục thay một từ vẫn hoạt động khi tắt tùy chọn này.
 - **Xuất…** lưu thư viện thành file JSON; **Nhập…** gộp file vào thư viện đang dùng. Để chuyển sang máy khác, xuất file rồi nhập trên máy đó.
 - Mục trùng tự gộp. Nếu khác từ thay thế, **giá trị trong file nhập được ưu tiên**; nếu trùng ngay trong file, dòng cuối thắng.
@@ -56,7 +58,7 @@ NahtKey xử lý cục bộ, không ghi nhật ký phím hoặc gửi nội dung
 
 Các tiện ích sau mặc định tắt:
 
-- **Khôi phục tiếng Anh và mã khi gõ Telex:** khôi phục các chuỗi không phù hợp cấu trúc tiếng Việt khi kết thúc từ, như `user`, `office`, `useEffect`. Không tác động VNI; chuỗi mơ hồ như `test → tét` vẫn giữ dấu.
+- **Khôi phục tiếng Anh và mã khi gõ Telex:** bật để khôi phục các chuỗi không hợp lệ trong tiếng Việt khi kết thúc từ, như `push`, `fix`, `release`, `text`, `next`, `class`, `user`, `useEffect`. Không tác động VNI; chuỗi mơ hồ như `test → tét` vẫn giữ dấu nếu chưa có quy tắc cá nhân.
 - **Esc khôi phục chuỗi phím:** nhấn trước khi kết thúc từ để lấy lại phím gốc trong cả VNI và Telex. Không khôi phục sau khi đã xóa hoặc quay lại sửa từ cũ. Khi không có chuỗi cần khôi phục, Esc hoạt động bình thường.
 - **Nhớ bật/tắt theo ứng dụng:** lưu trạng thái riêng khi bạn chủ động bật/tắt. Tắt tùy chọn để trở lại trạng thái chung; kiểu gõ VNI/Telex luôn dùng chung.
 - **Gõ tắt thành cụm từ hoặc câu:** dùng các mục nhiều từ trong thư viện cá nhân.

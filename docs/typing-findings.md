@@ -32,6 +32,10 @@ Thử thêm Telex, chữ hoa, dấu lặp, Backspace và nhập ở đầu ô tr
 - Khi bật khôi phục Telex: `user`, `office`, `useEffect`, `JavaScript` + Space phải trở lại phím gốc; `tieengs Vieetj`, `chuwa`, `muwa`, `uuw` vẫn thành tiếng Việt.
 - `test` là chuỗi mơ hồ và vẫn thành `tét`; bật khôi phục bằng Esc để lấy lại `test`. Không khôi phục phím sau Backspace hoặc khi sửa lại từ cũ. Esc khi không cần khôi phục vẫn đi tới ứng dụng.
 - Bật/tắt khôi phục Telex không được thay đổi kết quả VNI. Kiểm tra dấu lặp, chữ hoa, giới hạn token và ưu tiên từ cá nhân.
+- Backspace ở ô trống hoặc xóa hết từ rồi gõ `cau3` (VNI) / `caur` (Telex) phải áp dụng `cảu → của` khi kết thúc từ. Kiểm tra cả khi gõ tắt cụm từ bật/tắt. Khi chỉ xóa một phần hoặc quay lại từ cũ, không đoán lại chuỗi phím gốc.
+- Khi bật khôi phục Telex, `push`, `fix`, `release`, `text`, `next`, `sort`, `port`, `class`, `press` phải giữ nguyên sau Space hoặc dấu câu, kể cả sau khi xóa hết từ cũ. `tets → tét`, `boojt → bột`, `hojc → học`, `ass → as`, `aaa → aa` vẫn giữ cách gõ hiện có.
+- Quy tắc phím gốc ưu tiên hơn quy tắc Unicode; cả hai ưu tiên hơn khôi phục tiếng Anh. Khi tắt gõ tắt cụm từ, chỉ bỏ các mục có khoảng trắng trong nội dung thay thế, không bỏ quy tắc một từ.
+- Gõ nhanh `push fix release text next sort` trong ô tìm kiếm có gợi ý. Sau Space/dấu câu đã biết, không đọc lại từ cũ từ Accessibility có thể trễ; các phím `f/r/s` đầu từ mới không được nối vào từ trước. Di chuyển con trỏ về từ cũ vẫn cho phép đọc lại ngữ cảnh đã xác minh.
 - Gõ tắt cụm câu chỉ hoạt động khi bật tùy chọn; các sửa lỗi một từ vẫn hoạt động. Nhập/xuất phải giữ cả mục cụm câu khi tùy chọn tắt; từ chối tab, xuống dòng, điều khiển và khoảng trắng đầu/cuối.
 - Ghi nhớ ứng dụng mặc định tắt. Khi bật, đổi qua lại hai ứng dụng phải giữ trạng thái riêng; mở NahtKey không tạo profile mới. Tắt tùy chọn phải khôi phục trạng thái chung.
 - Kiểm tra Ctrl+Shift, Cmd+Shift, Ctrl+Option và tắt phím chuyển; tổ hợp có thêm phím/kéo chuột không được đổi chế độ.
