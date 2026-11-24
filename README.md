@@ -6,7 +6,7 @@ Bộ gõ tiếng Việt cho macOS, hỗ trợ VNI, Telex và thư viện sửa l
 
 Yêu cầu **Mac Apple Silicon (M1 trở lên), macOS 14 trở lên**.
 
-1. Tải `NahtKey-0.5.1-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
+1. Tải `NahtKey-0.6.0-macos-arm64.zip` tại [GitHub Releases](https://github.com/VN-Levie/NahtKey/releases/latest), giải nén và kéo **NahtKey.app** vào **Applications**.
 2. Mở NahtKey và cấp **quyền Trợ năng** khi được yêu cầu.
 3. Chọn nguồn nhập **ABC**, tắt bộ gõ tiếng Việt khác, rồi chọn **VNI** hoặc **Telex** trong NahtKey.
 
