@@ -19,9 +19,38 @@ public struct TextEdit: Equatable {
     }
 }
 
+/// The case shape of a typed word that may reuse a lower-case personal rule.
+/// Mixed case (iPhone, chEkc) has no shape and is never rewritten that way.
+private enum LetterCase {
+    case capitalized, allCaps
+
+    init?(of word: String) {
+        let letters = word.filter(\.isLetter)
+        guard let first = letters.first, first.isUppercase else { return nil }
+        if letters.count > 1, letters.allSatisfy(\.isUppercase) {
+            self = .allCaps
+        } else if letters.dropFirst().allSatisfy({ !$0.isUppercase }) {
+            self = .capitalized
+        } else {
+            return nil
+        }
+    }
+
+    func apply(to replacement: String) -> String {
+        switch self {
+        case .allCaps:
+            return replacement.uppercased()
+        case .capitalized:
+            guard let first = replacement.first else { return replacement }
+            return first.uppercased() + replacement.dropFirst()
+        }
+    }
+}
+
 /// A platform-independent VNI and Telex composer. The host owns word boundaries,
 /// cursor changes, and applying edits. Personal rules prefer exact input keys,
-/// then an explicit Unicode-word alias for the composed candidate.
+/// then an explicit Unicode-word alias for the composed candidate, then the same
+/// two lookups in lower case for a capitalized or all-caps word.
 public final class VNIEngine {
     public var corrections: [String: String]
     public var inputMethod: InputMethod {
@@ -141,10 +170,17 @@ public final class VNIEngine {
         let candidate = rendered.precomposedStringWithCanonicalMapping
         // ASCII entries remain raw-key rules. For example, ban50 -> ban must
         // not accidentally trigger a raw "ban" alias after 0 clears the tone.
-        guard candidate.contains(where: { $0.isLetter && !$0.isASCII }) else { return nil }
+        let matchesUnicodeAliases = candidate.contains(where: { $0.isLetter && !$0.isASCII })
         // Swift String equality/hashing is canonically equivalent: this lookup
         // also accepts NFD dictionary keys without scanning or copying the map.
-        return corrections[candidate]
+        if matchesUnicodeAliases, let exact = corrections[candidate] { return exact }
+        // A capitalized or all-caps word reuses lower-case rules and keeps its
+        // own case (Haon2 -> Hoàn, CHEKC -> CHECK). Exact-case rules above still
+        // win, so Kai -> Kai can protect a name from kai -> kia.
+        guard let letterCase = LetterCase(of: candidate) else { return nil }
+        if let folded = corrections[raw.lowercased()] { return letterCase.apply(to: folded) }
+        guard matchesUnicodeAliases, let folded = corrections[candidate.lowercased()] else { return nil }
+        return letterCase.apply(to: folded)
     }
 
     /// Delete one visible grapheme, rather than undoing a hidden typing modifier.

@@ -30,7 +30,8 @@ Thêm các cặp sửa lỗi như `abn5 → bạn`, `ab5n → bạn` hoặc `cà
 
 - Thêm, sửa, xóa và tìm kiếm từ. Các mục mẫu có thể sửa hoặc xóa.
 - Cả hai ô thêm/sửa đều gõ VNI/Telex trực tiếp; nội dung dán được giữ nguyên.
-- Chuỗi cần sửa dài 1–64 chữ cái/chữ số, có thể có dấu, không chứa khoảng trắng; có phân biệt hoa/thường.
+- Chuỗi cần sửa dài 1–64 chữ cái/chữ số, có thể có dấu, không chứa khoảng trắng.
+- Quy tắc viết thường cũng áp dụng cho từ viết hoa chữ đầu hoặc viết hoa toàn bộ, giữ đúng kiểu hoa: `Abn5` → `Bạn`, `ABN5` → `BẠN`. Từ viết hoa lẫn lộn (`aBn5`) không bị sửa. Muốn giữ nguyên một từ viết hoa, ví dụ tên riêng, thêm quy tắc đúng kiểu đó: `Kai → Kai`.
 - Ưu tiên quy tắc khớp chuỗi phím gốc, sau đó đến từ đã ghép dấu, rồi mới khôi phục tiếng Anh. Xóa hết từ rồi gõ lại sẽ áp dụng quy tắc như một từ mới.
 - Để giữ một từ tiếng Anh mơ hồ, có thể thêm quy tắc `test → test`. Khi đó vẫn gõ được `tét` bằng `tets`.
 - Nội dung thay thế dài 1–128 ký tự, có thể là cụm từ hoặc câu; không xuống dòng, không có khoảng trắng đầu/cuối. Bật **Gõ tắt thành cụm từ hoặc câu** trong **Tùy chọn** để áp dụng các mục có khoảng trắng. Các mục thay một từ vẫn hoạt động khi tắt tùy chọn này.

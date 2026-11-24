@@ -99,7 +99,7 @@ final class CorrectionPriorityIntegrationTests: XCTestCase {
         }
     }
 
-    func testEscapeRestoresLiteralKeysAndUnicodeAliasesRemainCaseSensitive() throws {
+    func testEscapeRestoresLiteralKeysAndUnicodeAliasesKeepTypedCase() throws {
         let session = TypingSession(corrections: ["cau3": "raw", "cảu": "của"], inputMethod: .vni)
         var visible = type("cau3", session: session)
         XCTAssertEqual(visible, "cảu")
@@ -109,8 +109,10 @@ final class CorrectionPriorityIntegrationTests: XCTestCase {
         apply(session.finish(boundary: " "), to: &visible)
         XCTAssertEqual(visible, "cau3")
 
-        XCTAssertEqual(type("Cau3", corrections: ["cảu": "của"], method: .vni), "Cảu",
-                       "A lower-case Unicode alias must not rewrite an upper-case composed word")
+        XCTAssertEqual(type("Cau3", corrections: ["cảu": "của"], method: .vni), "Của",
+                       "A lower-case Unicode alias serves a capitalized word and keeps its case")
+        XCTAssertEqual(type("cAu3", corrections: ["cảu": "của"], method: .vni), "cẢu",
+                       "Mixed case is not rewritten by a lower-case alias")
     }
 
     private func type(_ keys: String, corrections: [String: String],

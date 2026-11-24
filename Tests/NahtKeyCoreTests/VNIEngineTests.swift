@@ -65,8 +65,8 @@ final class VNIEngineTests: XCTestCase {
         }
     }
 
-    func testAliasesAreExactCaseSensitiveAndDoNotGuess() {
-        for input in ["Abn5", "xabn5", "abn", "abn4"] {
+    func testAliasesMatchWholeTokensAndDoNotGuess() {
+        for input in ["aBn5", "xabn5", "abn", "abn4"] {
             let engine = VNIEngine(corrections: ["abn5": "bạn"])
             let displayed = type(input, into: engine)
             var result = displayed
